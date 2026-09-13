@@ -1,0 +1,156 @@
+\x1b[95m@charset\x1b[m \x1b[91m"UTF-8"\x1b[m;
+
+\x1b[95m@import\x1b[m \x1b[33murl\x1b[m(\x1b[91m"fonts/example.woff2"\x1b[m) screen;
+\x1b[95m@import\x1b[m \x1b[91m"shared/reset.css"\x1b[m;
+
+\x1b[32m/* Base custom properties.\x1b[m
+\x1b[32m   This comment spans a couple of lines on purpose. */\x1b[m
+\x1b[94m:root\x1b[m {
+  \x1b[96m--brand-color\x1b[m: \x1b[92m#3366ff\x1b[m;
+  \x1b[96m--gap\x1b[m: \x1b[92m1.4rem\x1b[m;
+  \x1b[96m--radius\x1b[m: \x1b[92m4px\x1b[m;
+}
+
+\x1b[95m@font-face\x1b[m {
+  \x1b[96mfont-family\x1b[m: \x1b[91m"Example Sans"\x1b[m;
+  \x1b[96msrc\x1b[m: \x1b[33murl\x1b[m(\x1b[91mfonts/example.woff2\x1b[m) \x1b[33mformat\x1b[m(\x1b[91m"woff2"\x1b[m),
+       \x1b[33murl\x1b[m(\x1b[91m"fonts/example.woff"\x1b[m) \x1b[33mformat\x1b[m(\x1b[91m'woff'\x1b[m);
+  \x1b[96mfont-weight\x1b[m: \x1b[92m100\x1b[m \x1b[92m800\x1b[m;
+}
+
+\x1b[95m@page\x1b[m {
+  \x1b[96mmargin\x1b[m: \x1b[92m1in\x1b[m;
+}
+
+\x1b[95m@page\x1b[m :first {
+  \x1b[96mmargin-top\x1b[m: \x1b[92m2in\x1b[m;
+}
+
+\x1b[94m*\x1b[m,
+\x1b[94m*\x1b[m\x1b[94m::before\x1b[m,
+\x1b[94m*\x1b[m\x1b[94m::after\x1b[m {
+  \x1b[96mbox-sizing\x1b[m: border-box;
+}
+
+\x1b[94mhtml\x1b[m {
+  \x1b[96mfont-size\x1b[m: \x1b[92m100%\x1b[m;
+}
+
+\x1b[94mbody\x1b[m {
+  \x1b[96mbackground\x1b[m: \x1b[33mvar\x1b[m(\x1b[96m--brand-color\x1b[m);
+  \x1b[96mcolor\x1b[m: \x1b[92m#FFF\x1b[m;
+  \x1b[96mmin-height\x1b[m: \x1b[92m100dvh\x1b[m;
+  \x1b[96mletter-spacing\x1b[m: \x1b[92m-0.0025em\x1b[m;
+  \x1b[96mline-height\x1b[m: \x1b[92m1.4\x1b[m;
+  \x1b[96mpadding\x1b[m: \x1b[92m3px\x1b[m \x1b[33mclamp\x1b[m(\x1b[92m1rem\x1b[m, \x1b[92m2.5vw\x1b[m, \x1b[92m2rem\x1b[m);
+  \x1b[96mwidth\x1b[m: \x1b[33mcalc\x1b[m(\x1b[92m100%\x1b[m - \x1b[33mvar\x1b[m(\x1b[96m--gap\x1b[m));
+}
+
+\x1b[94ma\x1b[m\x1b[94m:hover\x1b[m,
+\x1b[94ma\x1b[m\x1b[94m:focus-visible\x1b[m {
+  \x1b[96mcolor\x1b[m: \x1b[33mrgb\x1b[m(\x1b[92m0\x1b[m, \x1b[92m51\x1b[m, \x1b[92m255\x1b[m);
+  \x1b[96mtext-decoration\x1b[m: underline \x1b[94m!important\x1b[m;
+}
+
+\x1b[94ma\x1b[m\x1b[94m::before\x1b[m {
+  \x1b[96mcontent\x1b[m: \x1b[33mattr\x1b[m(data-label);
+}
+
+\x1b[36m.card\x1b[m > \x1b[36m.title\x1b[m + \x1b[36m.subtitle\x1b[m ~ \x1b[36m.note\x1b[m {
+  \x1b[96mborder-radius\x1b[m: \x1b[33mvar\x1b[m(\x1b[96m--radius\x1b[m, \x1b[92m4px\x1b[m);
+}
+
+\x1b[36m#error-id\x1b[m {
+  \x1b[96mfill\x1b[m: \x1b[92m#d30001\x1b[m;
+}
+
+\x1b[94minput\x1b[m[\x1b[96mtype\x1b[m=\x1b[91m"text"\x1b[m],
+\x1b[94minput\x1b[m[\x1b[96mtype\x1b[m=\x1b[94memail\x1b[m] {
+  \x1b[96mborder\x1b[m: \x1b[92m1px\x1b[m solid \x1b[92m#ccc\x1b[m;
+}
+
+\x1b[94ma\x1b[m[\x1b[96mclass\x1b[m*=\x1b[91m"btn"\x1b[m], \x1b[94ma\x1b[m[\x1b[96mhref\x1b[m^=\x1b[91m"https://"\x1b[m], \x1b[94ma\x1b[m[\x1b[96mhref\x1b[m$=\x1b[91m".pdf"\x1b[m] {
+  \x1b[96mtext-decoration\x1b[m: \x1b[94mnone\x1b[m;
+}
+
+\x1b[94mul\x1b[m > \x1b[94mli\x1b[m\x1b[94m:not\x1b[m(\x1b[36m.hidden\x1b[m) {
+  \x1b[96mlist-style\x1b[m: \x1b[94mnone\x1b[m;
+}
+
+\x1b[36m.panel\x1b[m {
+  \x1b[96mdisplay\x1b[m: grid;
+  \x1b[96mgap\x1b[m: \x1b[33mvar\x1b[m(\x1b[96m--gap\x1b[m);
+
+  \x1b[94m&\x1b[m\x1b[94m:hover\x1b[m {
+    \x1b[96mbackground\x1b[m: \x1b[92m#eee\x1b[m;
+  }
+
+  \x1b[94m&\x1b[m > \x1b[36m.panel-body\x1b[m {
+    \x1b[96mpadding\x1b[m: \x1b[92m1em\x1b[m;
+  }
+
+  \x1b[95m@media\x1b[m (min-width: \x1b[92m48em\x1b[m) {
+    \x1b[96mdisplay\x1b[m: flex;
+  }
+}
+
+\x1b[36m.card\x1b[m {
+  \x1b[96mcolor\x1b[m: \x1b[92m#222\x1b[m;
+
+  a {
+    \x1b[96mcolor\x1b[m: blue;
+  }
+
+  \x1b[96mbackground\x1b[m: \x1b[92m#fff\x1b[m;
+}
+
+\x1b[95m@media\x1b[m screen \x1b[94mand\x1b[m (min-width: \x1b[92m40em\x1b[m), print {
+  \x1b[94mbody\x1b[m {
+    \x1b[96mfont-size\x1b[m: \x1b[92m120%\x1b[m;
+  }
+
+  \x1b[36m.card\x1b[m {
+    \x1b[96mwidth\x1b[m: \x1b[33mmin\x1b[m(\x1b[92m100%\x1b[m, \x1b[92m30em\x1b[m);
+  }
+}
+
+\x1b[95m@supports\x1b[m (display: grid) \x1b[94mand\x1b[m (gap: \x1b[92m1em\x1b[m) {
+  \x1b[36m.grid\x1b[m {
+    \x1b[96mdisplay\x1b[m: grid;
+  }
+}
+
+\x1b[95m@container\x1b[m (min-width: \x1b[92m20em\x1b[m) {
+  \x1b[36m.box\x1b[m {
+    \x1b[96mpadding\x1b[m: \x1b[92m2em\x1b[m;
+  }
+}
+
+\x1b[95m@layer\x1b[m reset, base, components;
+
+\x1b[95m@layer\x1b[m base {
+  \x1b[94mbody\x1b[m {
+    \x1b[96mfont-family\x1b[m: sans-serif;
+  }
+}
+
+\x1b[95m@keyframes\x1b[m spin {
+  \x1b[94mfrom\x1b[m {
+    \x1b[96mtransform\x1b[m: \x1b[33mrotate\x1b[m(\x1b[92m0deg\x1b[m);
+  }
+  \x1b[92m50%\x1b[m {
+    \x1b[96mopacity\x1b[m: \x1b[92m0.5\x1b[m;
+  }
+  \x1b[94mto\x1b[m {
+    \x1b[96mtransform\x1b[m: \x1b[33mrotate\x1b[m(\x1b[92m360deg\x1b[m);
+  }
+}
+
+\x1b[36m.quote\x1b[m\x1b[94m::after\x1b[m {
+  \x1b[96mcontent\x1b[m: \x1b[91m"he said \x1b[m\x1b[33m\\"\x1b[m\x1b[91mhi\x1b[m\x1b[33m\\"\x1b[m\x1b[33m\\A\x1b[m\x1b[91m watch the newline"\x1b[m;
+}
+
+\x1b[36m.escaped\x1b[m {
+  \x1b[96mcontent\x1b[m: \x1b[91m'it\x1b[m\x1b[33m\\'\x1b[m\x1b[91ms fine'\x1b[m;
+}
+

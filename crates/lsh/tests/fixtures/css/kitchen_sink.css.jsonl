@@ -1,0 +1,462 @@
+{"line":1,"kind":"keyword.control","text":"@charset"}
+{"line":1,"kind":"other","text":" "}
+{"line":1,"kind":"string","text":"\"UTF-8\""}
+{"line":1,"kind":"other","text":";"}
+{"line":3,"kind":"keyword.control","text":"@import"}
+{"line":3,"kind":"other","text":" "}
+{"line":3,"kind":"support.function","text":"url"}
+{"line":3,"kind":"other","text":"("}
+{"line":3,"kind":"string","text":"\"fonts/example.woff2\""}
+{"line":3,"kind":"other","text":") screen;"}
+{"line":4,"kind":"keyword.control","text":"@import"}
+{"line":4,"kind":"other","text":" "}
+{"line":4,"kind":"string","text":"\"shared/reset.css\""}
+{"line":4,"kind":"other","text":";"}
+{"line":6,"kind":"comment","text":"/* Base custom properties."}
+{"line":7,"kind":"comment","text":"   This comment spans a couple of lines on purpose. */"}
+{"line":8,"kind":"constant.language","text":":root"}
+{"line":8,"kind":"other","text":" {"}
+{"line":9,"kind":"other","text":"  "}
+{"line":9,"kind":"variable","text":"--brand-color"}
+{"line":9,"kind":"other","text":": "}
+{"line":9,"kind":"constant.numeric","text":"#3366ff"}
+{"line":9,"kind":"other","text":";"}
+{"line":10,"kind":"other","text":"  "}
+{"line":10,"kind":"variable","text":"--gap"}
+{"line":10,"kind":"other","text":": "}
+{"line":10,"kind":"constant.numeric","text":"1.4rem"}
+{"line":10,"kind":"other","text":";"}
+{"line":11,"kind":"other","text":"  "}
+{"line":11,"kind":"variable","text":"--radius"}
+{"line":11,"kind":"other","text":": "}
+{"line":11,"kind":"constant.numeric","text":"4px"}
+{"line":11,"kind":"other","text":";"}
+{"line":12,"kind":"other","text":"}"}
+{"line":14,"kind":"keyword.control","text":"@font-face"}
+{"line":14,"kind":"other","text":" {"}
+{"line":15,"kind":"other","text":"  "}
+{"line":15,"kind":"variable","text":"font-family"}
+{"line":15,"kind":"other","text":": "}
+{"line":15,"kind":"string","text":"\"Example Sans\""}
+{"line":15,"kind":"other","text":";"}
+{"line":16,"kind":"other","text":"  "}
+{"line":16,"kind":"variable","text":"src"}
+{"line":16,"kind":"other","text":": "}
+{"line":16,"kind":"support.function","text":"url"}
+{"line":16,"kind":"other","text":"("}
+{"line":16,"kind":"string","text":"fonts/example.woff2"}
+{"line":16,"kind":"other","text":") "}
+{"line":16,"kind":"support.function","text":"format"}
+{"line":16,"kind":"other","text":"("}
+{"line":16,"kind":"string","text":"\"woff2\""}
+{"line":16,"kind":"other","text":"),"}
+{"line":17,"kind":"other","text":"       "}
+{"line":17,"kind":"support.function","text":"url"}
+{"line":17,"kind":"other","text":"("}
+{"line":17,"kind":"string","text":"\"fonts/example.woff\""}
+{"line":17,"kind":"other","text":") "}
+{"line":17,"kind":"support.function","text":"format"}
+{"line":17,"kind":"other","text":"("}
+{"line":17,"kind":"string","text":"'woff'"}
+{"line":17,"kind":"other","text":");"}
+{"line":18,"kind":"other","text":"  "}
+{"line":18,"kind":"variable","text":"font-weight"}
+{"line":18,"kind":"other","text":": "}
+{"line":18,"kind":"constant.numeric","text":"100"}
+{"line":18,"kind":"other","text":" "}
+{"line":18,"kind":"constant.numeric","text":"800"}
+{"line":18,"kind":"other","text":";"}
+{"line":19,"kind":"other","text":"}"}
+{"line":21,"kind":"keyword.control","text":"@page"}
+{"line":21,"kind":"other","text":" {"}
+{"line":22,"kind":"other","text":"  "}
+{"line":22,"kind":"variable","text":"margin"}
+{"line":22,"kind":"other","text":": "}
+{"line":22,"kind":"constant.numeric","text":"1in"}
+{"line":22,"kind":"other","text":";"}
+{"line":23,"kind":"other","text":"}"}
+{"line":25,"kind":"keyword.control","text":"@page"}
+{"line":25,"kind":"other","text":" :first {"}
+{"line":26,"kind":"other","text":"  "}
+{"line":26,"kind":"variable","text":"margin-top"}
+{"line":26,"kind":"other","text":": "}
+{"line":26,"kind":"constant.numeric","text":"2in"}
+{"line":26,"kind":"other","text":";"}
+{"line":27,"kind":"other","text":"}"}
+{"line":29,"kind":"constant.language","text":"*"}
+{"line":29,"kind":"other","text":","}
+{"line":30,"kind":"constant.language","text":"*"}
+{"line":30,"kind":"constant.language","text":"::before"}
+{"line":30,"kind":"other","text":","}
+{"line":31,"kind":"constant.language","text":"*"}
+{"line":31,"kind":"constant.language","text":"::after"}
+{"line":31,"kind":"other","text":" {"}
+{"line":32,"kind":"other","text":"  "}
+{"line":32,"kind":"variable","text":"box-sizing"}
+{"line":32,"kind":"other","text":": border-box;"}
+{"line":33,"kind":"other","text":"}"}
+{"line":35,"kind":"constant.language","text":"html"}
+{"line":35,"kind":"other","text":" {"}
+{"line":36,"kind":"other","text":"  "}
+{"line":36,"kind":"variable","text":"font-size"}
+{"line":36,"kind":"other","text":": "}
+{"line":36,"kind":"constant.numeric","text":"100%"}
+{"line":36,"kind":"other","text":";"}
+{"line":37,"kind":"other","text":"}"}
+{"line":39,"kind":"constant.language","text":"body"}
+{"line":39,"kind":"other","text":" {"}
+{"line":40,"kind":"other","text":"  "}
+{"line":40,"kind":"variable","text":"background"}
+{"line":40,"kind":"other","text":": "}
+{"line":40,"kind":"support.function","text":"var"}
+{"line":40,"kind":"other","text":"("}
+{"line":40,"kind":"variable","text":"--brand-color"}
+{"line":40,"kind":"other","text":");"}
+{"line":41,"kind":"other","text":"  "}
+{"line":41,"kind":"variable","text":"color"}
+{"line":41,"kind":"other","text":": "}
+{"line":41,"kind":"constant.numeric","text":"#FFF"}
+{"line":41,"kind":"other","text":";"}
+{"line":42,"kind":"other","text":"  "}
+{"line":42,"kind":"variable","text":"min-height"}
+{"line":42,"kind":"other","text":": "}
+{"line":42,"kind":"constant.numeric","text":"100dvh"}
+{"line":42,"kind":"other","text":";"}
+{"line":43,"kind":"other","text":"  "}
+{"line":43,"kind":"variable","text":"letter-spacing"}
+{"line":43,"kind":"other","text":": "}
+{"line":43,"kind":"constant.numeric","text":"-0.0025em"}
+{"line":43,"kind":"other","text":";"}
+{"line":44,"kind":"other","text":"  "}
+{"line":44,"kind":"variable","text":"line-height"}
+{"line":44,"kind":"other","text":": "}
+{"line":44,"kind":"constant.numeric","text":"1.4"}
+{"line":44,"kind":"other","text":";"}
+{"line":45,"kind":"other","text":"  "}
+{"line":45,"kind":"variable","text":"padding"}
+{"line":45,"kind":"other","text":": "}
+{"line":45,"kind":"constant.numeric","text":"3px"}
+{"line":45,"kind":"other","text":" "}
+{"line":45,"kind":"support.function","text":"clamp"}
+{"line":45,"kind":"other","text":"("}
+{"line":45,"kind":"constant.numeric","text":"1rem"}
+{"line":45,"kind":"other","text":", "}
+{"line":45,"kind":"constant.numeric","text":"2.5vw"}
+{"line":45,"kind":"other","text":", "}
+{"line":45,"kind":"constant.numeric","text":"2rem"}
+{"line":45,"kind":"other","text":");"}
+{"line":46,"kind":"other","text":"  "}
+{"line":46,"kind":"variable","text":"width"}
+{"line":46,"kind":"other","text":": "}
+{"line":46,"kind":"support.function","text":"calc"}
+{"line":46,"kind":"other","text":"("}
+{"line":46,"kind":"constant.numeric","text":"100%"}
+{"line":46,"kind":"other","text":" - "}
+{"line":46,"kind":"support.function","text":"var"}
+{"line":46,"kind":"other","text":"("}
+{"line":46,"kind":"variable","text":"--gap"}
+{"line":46,"kind":"other","text":"));"}
+{"line":47,"kind":"other","text":"}"}
+{"line":49,"kind":"constant.language","text":"a"}
+{"line":49,"kind":"constant.language","text":":hover"}
+{"line":49,"kind":"other","text":","}
+{"line":50,"kind":"constant.language","text":"a"}
+{"line":50,"kind":"constant.language","text":":focus-visible"}
+{"line":50,"kind":"other","text":" {"}
+{"line":51,"kind":"other","text":"  "}
+{"line":51,"kind":"variable","text":"color"}
+{"line":51,"kind":"other","text":": "}
+{"line":51,"kind":"support.function","text":"rgb"}
+{"line":51,"kind":"other","text":"("}
+{"line":51,"kind":"constant.numeric","text":"0"}
+{"line":51,"kind":"other","text":", "}
+{"line":51,"kind":"constant.numeric","text":"51"}
+{"line":51,"kind":"other","text":", "}
+{"line":51,"kind":"constant.numeric","text":"255"}
+{"line":51,"kind":"other","text":");"}
+{"line":52,"kind":"other","text":"  "}
+{"line":52,"kind":"variable","text":"text-decoration"}
+{"line":52,"kind":"other","text":": underline "}
+{"line":52,"kind":"keyword.other","text":"!important"}
+{"line":52,"kind":"other","text":";"}
+{"line":53,"kind":"other","text":"}"}
+{"line":55,"kind":"constant.language","text":"a"}
+{"line":55,"kind":"constant.language","text":"::before"}
+{"line":55,"kind":"other","text":" {"}
+{"line":56,"kind":"other","text":"  "}
+{"line":56,"kind":"variable","text":"content"}
+{"line":56,"kind":"other","text":": "}
+{"line":56,"kind":"support.function","text":"attr"}
+{"line":56,"kind":"other","text":"(data-label);"}
+{"line":57,"kind":"other","text":"}"}
+{"line":59,"kind":"storage.type","text":".card"}
+{"line":59,"kind":"other","text":" > "}
+{"line":59,"kind":"storage.type","text":".title"}
+{"line":59,"kind":"other","text":" + "}
+{"line":59,"kind":"storage.type","text":".subtitle"}
+{"line":59,"kind":"other","text":" ~ "}
+{"line":59,"kind":"storage.type","text":".note"}
+{"line":59,"kind":"other","text":" {"}
+{"line":60,"kind":"other","text":"  "}
+{"line":60,"kind":"variable","text":"border-radius"}
+{"line":60,"kind":"other","text":": "}
+{"line":60,"kind":"support.function","text":"var"}
+{"line":60,"kind":"other","text":"("}
+{"line":60,"kind":"variable","text":"--radius"}
+{"line":60,"kind":"other","text":", "}
+{"line":60,"kind":"constant.numeric","text":"4px"}
+{"line":60,"kind":"other","text":");"}
+{"line":61,"kind":"other","text":"}"}
+{"line":63,"kind":"storage.type","text":"#error-id"}
+{"line":63,"kind":"other","text":" {"}
+{"line":64,"kind":"other","text":"  "}
+{"line":64,"kind":"variable","text":"fill"}
+{"line":64,"kind":"other","text":": "}
+{"line":64,"kind":"constant.numeric","text":"#d30001"}
+{"line":64,"kind":"other","text":";"}
+{"line":65,"kind":"other","text":"}"}
+{"line":67,"kind":"constant.language","text":"input"}
+{"line":67,"kind":"other","text":"["}
+{"line":67,"kind":"variable","text":"type"}
+{"line":67,"kind":"other","text":"="}
+{"line":67,"kind":"string","text":"\"text\""}
+{"line":67,"kind":"other","text":"],"}
+{"line":68,"kind":"constant.language","text":"input"}
+{"line":68,"kind":"other","text":"["}
+{"line":68,"kind":"variable","text":"type"}
+{"line":68,"kind":"other","text":"="}
+{"line":68,"kind":"constant.language","text":"email"}
+{"line":68,"kind":"other","text":"] {"}
+{"line":69,"kind":"other","text":"  "}
+{"line":69,"kind":"variable","text":"border"}
+{"line":69,"kind":"other","text":": "}
+{"line":69,"kind":"constant.numeric","text":"1px"}
+{"line":69,"kind":"other","text":" solid "}
+{"line":69,"kind":"constant.numeric","text":"#ccc"}
+{"line":69,"kind":"other","text":";"}
+{"line":70,"kind":"other","text":"}"}
+{"line":72,"kind":"constant.language","text":"a"}
+{"line":72,"kind":"other","text":"["}
+{"line":72,"kind":"variable","text":"class"}
+{"line":72,"kind":"other","text":"*="}
+{"line":72,"kind":"string","text":"\"btn\""}
+{"line":72,"kind":"other","text":"], "}
+{"line":72,"kind":"constant.language","text":"a"}
+{"line":72,"kind":"other","text":"["}
+{"line":72,"kind":"variable","text":"href"}
+{"line":72,"kind":"other","text":"^="}
+{"line":72,"kind":"string","text":"\"https://\""}
+{"line":72,"kind":"other","text":"], "}
+{"line":72,"kind":"constant.language","text":"a"}
+{"line":72,"kind":"other","text":"["}
+{"line":72,"kind":"variable","text":"href"}
+{"line":72,"kind":"other","text":"$="}
+{"line":72,"kind":"string","text":"\".pdf\""}
+{"line":72,"kind":"other","text":"] {"}
+{"line":73,"kind":"other","text":"  "}
+{"line":73,"kind":"variable","text":"text-decoration"}
+{"line":73,"kind":"other","text":": "}
+{"line":73,"kind":"constant.language","text":"none"}
+{"line":73,"kind":"other","text":";"}
+{"line":74,"kind":"other","text":"}"}
+{"line":76,"kind":"constant.language","text":"ul"}
+{"line":76,"kind":"other","text":" > "}
+{"line":76,"kind":"constant.language","text":"li"}
+{"line":76,"kind":"constant.language","text":":not"}
+{"line":76,"kind":"other","text":"("}
+{"line":76,"kind":"storage.type","text":".hidden"}
+{"line":76,"kind":"other","text":") {"}
+{"line":77,"kind":"other","text":"  "}
+{"line":77,"kind":"variable","text":"list-style"}
+{"line":77,"kind":"other","text":": "}
+{"line":77,"kind":"constant.language","text":"none"}
+{"line":77,"kind":"other","text":";"}
+{"line":78,"kind":"other","text":"}"}
+{"line":80,"kind":"storage.type","text":".panel"}
+{"line":80,"kind":"other","text":" {"}
+{"line":81,"kind":"other","text":"  "}
+{"line":81,"kind":"variable","text":"display"}
+{"line":81,"kind":"other","text":": grid;"}
+{"line":82,"kind":"other","text":"  "}
+{"line":82,"kind":"variable","text":"gap"}
+{"line":82,"kind":"other","text":": "}
+{"line":82,"kind":"support.function","text":"var"}
+{"line":82,"kind":"other","text":"("}
+{"line":82,"kind":"variable","text":"--gap"}
+{"line":82,"kind":"other","text":");"}
+{"line":84,"kind":"other","text":"  "}
+{"line":84,"kind":"constant.language","text":"&"}
+{"line":84,"kind":"constant.language","text":":hover"}
+{"line":84,"kind":"other","text":" {"}
+{"line":85,"kind":"other","text":"    "}
+{"line":85,"kind":"variable","text":"background"}
+{"line":85,"kind":"other","text":": "}
+{"line":85,"kind":"constant.numeric","text":"#eee"}
+{"line":85,"kind":"other","text":";"}
+{"line":86,"kind":"other","text":"  }"}
+{"line":88,"kind":"other","text":"  "}
+{"line":88,"kind":"constant.language","text":"&"}
+{"line":88,"kind":"other","text":" > "}
+{"line":88,"kind":"storage.type","text":".panel-body"}
+{"line":88,"kind":"other","text":" {"}
+{"line":89,"kind":"other","text":"    "}
+{"line":89,"kind":"variable","text":"padding"}
+{"line":89,"kind":"other","text":": "}
+{"line":89,"kind":"constant.numeric","text":"1em"}
+{"line":89,"kind":"other","text":";"}
+{"line":90,"kind":"other","text":"  }"}
+{"line":92,"kind":"other","text":"  "}
+{"line":92,"kind":"keyword.control","text":"@media"}
+{"line":92,"kind":"other","text":" (min-width: "}
+{"line":92,"kind":"constant.numeric","text":"48em"}
+{"line":92,"kind":"other","text":") {"}
+{"line":93,"kind":"other","text":"    "}
+{"line":93,"kind":"variable","text":"display"}
+{"line":93,"kind":"other","text":": flex;"}
+{"line":94,"kind":"other","text":"  }"}
+{"line":95,"kind":"other","text":"}"}
+{"line":97,"kind":"storage.type","text":".card"}
+{"line":97,"kind":"other","text":" {"}
+{"line":98,"kind":"other","text":"  "}
+{"line":98,"kind":"variable","text":"color"}
+{"line":98,"kind":"other","text":": "}
+{"line":98,"kind":"constant.numeric","text":"#222"}
+{"line":98,"kind":"other","text":";"}
+{"line":100,"kind":"other","text":"  a {"}
+{"line":101,"kind":"other","text":"    "}
+{"line":101,"kind":"variable","text":"color"}
+{"line":101,"kind":"other","text":": blue;"}
+{"line":102,"kind":"other","text":"  }"}
+{"line":104,"kind":"other","text":"  "}
+{"line":104,"kind":"variable","text":"background"}
+{"line":104,"kind":"other","text":": "}
+{"line":104,"kind":"constant.numeric","text":"#fff"}
+{"line":104,"kind":"other","text":";"}
+{"line":105,"kind":"other","text":"}"}
+{"line":107,"kind":"keyword.control","text":"@media"}
+{"line":107,"kind":"other","text":" screen "}
+{"line":107,"kind":"keyword.other","text":"and"}
+{"line":107,"kind":"other","text":" (min-width: "}
+{"line":107,"kind":"constant.numeric","text":"40em"}
+{"line":107,"kind":"other","text":"), print {"}
+{"line":108,"kind":"other","text":"  "}
+{"line":108,"kind":"constant.language","text":"body"}
+{"line":108,"kind":"other","text":" {"}
+{"line":109,"kind":"other","text":"    "}
+{"line":109,"kind":"variable","text":"font-size"}
+{"line":109,"kind":"other","text":": "}
+{"line":109,"kind":"constant.numeric","text":"120%"}
+{"line":109,"kind":"other","text":";"}
+{"line":110,"kind":"other","text":"  }"}
+{"line":112,"kind":"other","text":"  "}
+{"line":112,"kind":"storage.type","text":".card"}
+{"line":112,"kind":"other","text":" {"}
+{"line":113,"kind":"other","text":"    "}
+{"line":113,"kind":"variable","text":"width"}
+{"line":113,"kind":"other","text":": "}
+{"line":113,"kind":"support.function","text":"min"}
+{"line":113,"kind":"other","text":"("}
+{"line":113,"kind":"constant.numeric","text":"100%"}
+{"line":113,"kind":"other","text":", "}
+{"line":113,"kind":"constant.numeric","text":"30em"}
+{"line":113,"kind":"other","text":");"}
+{"line":114,"kind":"other","text":"  }"}
+{"line":115,"kind":"other","text":"}"}
+{"line":117,"kind":"keyword.control","text":"@supports"}
+{"line":117,"kind":"other","text":" (display: grid) "}
+{"line":117,"kind":"keyword.other","text":"and"}
+{"line":117,"kind":"other","text":" (gap: "}
+{"line":117,"kind":"constant.numeric","text":"1em"}
+{"line":117,"kind":"other","text":") {"}
+{"line":118,"kind":"other","text":"  "}
+{"line":118,"kind":"storage.type","text":".grid"}
+{"line":118,"kind":"other","text":" {"}
+{"line":119,"kind":"other","text":"    "}
+{"line":119,"kind":"variable","text":"display"}
+{"line":119,"kind":"other","text":": grid;"}
+{"line":120,"kind":"other","text":"  }"}
+{"line":121,"kind":"other","text":"}"}
+{"line":123,"kind":"keyword.control","text":"@container"}
+{"line":123,"kind":"other","text":" (min-width: "}
+{"line":123,"kind":"constant.numeric","text":"20em"}
+{"line":123,"kind":"other","text":") {"}
+{"line":124,"kind":"other","text":"  "}
+{"line":124,"kind":"storage.type","text":".box"}
+{"line":124,"kind":"other","text":" {"}
+{"line":125,"kind":"other","text":"    "}
+{"line":125,"kind":"variable","text":"padding"}
+{"line":125,"kind":"other","text":": "}
+{"line":125,"kind":"constant.numeric","text":"2em"}
+{"line":125,"kind":"other","text":";"}
+{"line":126,"kind":"other","text":"  }"}
+{"line":127,"kind":"other","text":"}"}
+{"line":129,"kind":"keyword.control","text":"@layer"}
+{"line":129,"kind":"other","text":" reset, base, components;"}
+{"line":131,"kind":"keyword.control","text":"@layer"}
+{"line":131,"kind":"other","text":" base {"}
+{"line":132,"kind":"other","text":"  "}
+{"line":132,"kind":"constant.language","text":"body"}
+{"line":132,"kind":"other","text":" {"}
+{"line":133,"kind":"other","text":"    "}
+{"line":133,"kind":"variable","text":"font-family"}
+{"line":133,"kind":"other","text":": sans-serif;"}
+{"line":134,"kind":"other","text":"  }"}
+{"line":135,"kind":"other","text":"}"}
+{"line":137,"kind":"keyword.control","text":"@keyframes"}
+{"line":137,"kind":"other","text":" spin {"}
+{"line":138,"kind":"other","text":"  "}
+{"line":138,"kind":"constant.language","text":"from"}
+{"line":138,"kind":"other","text":" {"}
+{"line":139,"kind":"other","text":"    "}
+{"line":139,"kind":"variable","text":"transform"}
+{"line":139,"kind":"other","text":": "}
+{"line":139,"kind":"support.function","text":"rotate"}
+{"line":139,"kind":"other","text":"("}
+{"line":139,"kind":"constant.numeric","text":"0deg"}
+{"line":139,"kind":"other","text":");"}
+{"line":140,"kind":"other","text":"  }"}
+{"line":141,"kind":"other","text":"  "}
+{"line":141,"kind":"constant.numeric","text":"50%"}
+{"line":141,"kind":"other","text":" {"}
+{"line":142,"kind":"other","text":"    "}
+{"line":142,"kind":"variable","text":"opacity"}
+{"line":142,"kind":"other","text":": "}
+{"line":142,"kind":"constant.numeric","text":"0.5"}
+{"line":142,"kind":"other","text":";"}
+{"line":143,"kind":"other","text":"  }"}
+{"line":144,"kind":"other","text":"  "}
+{"line":144,"kind":"constant.language","text":"to"}
+{"line":144,"kind":"other","text":" {"}
+{"line":145,"kind":"other","text":"    "}
+{"line":145,"kind":"variable","text":"transform"}
+{"line":145,"kind":"other","text":": "}
+{"line":145,"kind":"support.function","text":"rotate"}
+{"line":145,"kind":"other","text":"("}
+{"line":145,"kind":"constant.numeric","text":"360deg"}
+{"line":145,"kind":"other","text":");"}
+{"line":146,"kind":"other","text":"  }"}
+{"line":147,"kind":"other","text":"}"}
+{"line":149,"kind":"storage.type","text":".quote"}
+{"line":149,"kind":"constant.language","text":"::after"}
+{"line":149,"kind":"other","text":" {"}
+{"line":150,"kind":"other","text":"  "}
+{"line":150,"kind":"variable","text":"content"}
+{"line":150,"kind":"other","text":": "}
+{"line":150,"kind":"string","text":"\"he said "}
+{"line":150,"kind":"constant.character.escape","text":"\\\""}
+{"line":150,"kind":"string","text":"hi"}
+{"line":150,"kind":"constant.character.escape","text":"\\\""}
+{"line":150,"kind":"constant.character.escape","text":"\\A"}
+{"line":150,"kind":"string","text":" watch the newline\""}
+{"line":150,"kind":"other","text":";"}
+{"line":151,"kind":"other","text":"}"}
+{"line":153,"kind":"storage.type","text":".escaped"}
+{"line":153,"kind":"other","text":" {"}
+{"line":154,"kind":"other","text":"  "}
+{"line":154,"kind":"variable","text":"content"}
+{"line":154,"kind":"other","text":": "}
+{"line":154,"kind":"string","text":"'it"}
+{"line":154,"kind":"constant.character.escape","text":"\\'"}
+{"line":154,"kind":"string","text":"s fine'"}
+{"line":154,"kind":"other","text":";"}
+{"line":155,"kind":"other","text":"}"}

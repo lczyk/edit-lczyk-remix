@@ -1,0 +1,448 @@
+#[display_name = "CSS"]
+#[block_comment_open = "/*"]
+#[block_comment_close = "*/"]
+#[path = "**/*.css"]
+pub fn css() {
+    loop {
+        css_rules();
+    }
+}
+
+// Rule context: the top level, and the body of a grouping at-rule (@media,
+// @supports, ...), which ends at its `}`.
+fn css_rules() {
+    loop {
+        until /$/ {
+            yield other;
+            if /\}/ {
+                yield other;
+                return;
+            }
+            css_rules_token();
+            yield other;
+        }
+        await input;
+    }
+}
+
+// One token of rule context. xml.lsh drives this directly for <style>.
+fn css_rules_token() {
+    if /\/\*/ {
+        css_comment();
+    } else if /@(?:import|charset|namespace)\>/ {
+        yield keyword.control;
+        css_statement_tail();
+    } else if /@(?:-webkit-|-moz-|-o-)?keyframes\>/ {
+        yield keyword.control;
+        css_prelude_to_keyframes();
+    } else if /@(?:font-face|page|property|counter-style|font-feature-values|font-palette-values|starting-style|position-try|view-transition)\>/ {
+        yield keyword.control;
+        css_prelude_to_decls();
+    } else if /@[\w-]+/ {
+        // Unknown at-rules are assumed to group rules, like @media.
+        yield keyword.control;
+        css_prelude_to_rules();
+    } else if /\{/ {
+        yield other;
+        css_declarations();
+    } else {
+        css_selector_token();
+    }
+}
+
+fn css_selector_token() {
+    if /::?[A-Za-z-][\w-]*/ {
+        yield constant.language;
+    } else if /[.#][A-Za-z_-][\w-]*/ {
+        yield storage.type;
+    } else if /\[([\w-]+)/ {
+        yield $1 as variable;
+        yield other;
+    } else if /"[^"]*"/ {
+        yield string;
+    } else if /'[^']*'/ {
+        yield string;
+    } else if /[~^$*|]?=/ {
+        // Attribute operators; `*=` must not read as the universal selector.
+    } else if /[&*]/ {
+        yield constant.language;
+    } else if /[A-Za-z][\w-]*/ {
+        yield constant.language;
+    } else if /./ {
+        // Combinators, commas, brackets.
+    }
+}
+
+// A rule body. Under native nesting a statement may be a nested rule, and
+// "a:hover" reads like "color:", so a bare identifier before `:` is taken as
+// a property and a `{` later on recovers into a nested block.
+fn css_declarations() {
+    var zero = 0;
+    var one = 1;
+    var in_value = 0;
+    // A flag, not a depth (there is no subtraction), kept in this frame so a
+    // `}` inside an unclosed `(` still ends this block.
+    var in_paren = 0;
+
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\/\*/ {
+                css_comment();
+            } else if /\}/ {
+                yield other;
+                return;
+            } else if /\{/ {
+                yield other;
+                css_declarations();
+                in_value = zero;
+                in_paren = zero;
+            } else {
+                if in_value == zero {
+                    if /([A-Za-z-][\w-]*)\s*:/ {
+                        yield $1 as variable;
+                        yield other;
+                        in_value = one;
+                    } else if /@[\w-]+/ {
+                        // Nested at-rules hold declarations, per CSS Nesting.
+                        yield keyword.control;
+                        css_prelude_to_decls();
+                    } else if /[&*]/ {
+                        yield constant.language;
+                        css_nested_rule();
+                    } else if /::?[A-Za-z-][\w-]*/ {
+                        yield constant.language;
+                        css_nested_rule();
+                    } else if /[.#][A-Za-z_-][\w-]*/ {
+                        yield storage.type;
+                        css_nested_rule();
+                    } else if /\[([\w-]+)/ {
+                        yield $1 as variable;
+                        yield other;
+                        css_nested_rule();
+                    } else if /[>+~]/ {
+                        css_nested_rule();
+                    } else if /[\w-]+/ {
+                    } else if /./ {
+                    }
+                } else {
+                    if /;/ {
+                        if in_paren == zero {
+                            in_value = zero;
+                        }
+                    } else if /\)/ {
+                        in_paren = zero;
+                    } else if /!important\>/ {
+                        yield keyword.other;
+                    } else if /(url)\s*\(/ {
+                        yield $1 as support.function;
+                        yield other;
+                        css_url_body();
+                    } else if /(var)\s*\(/ {
+                        yield $1 as support.function;
+                        yield other;
+                        if /--[\w-]+/ {
+                            yield variable;
+                        }
+                        in_paren = one;
+                    } else if /([\w-]+)\s*\(/ {
+                        yield $1 as support.function;
+                        in_paren = one;
+                    } else if /\(/ {
+                        in_paren = one;
+                    } else {
+                        css_value_leaf();
+                    }
+                }
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// One nested rule's selector, through the end of its block.
+fn css_nested_rule() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\/\*/ {
+                css_comment();
+            } else if /\{/ {
+                yield other;
+                css_declarations();
+                return;
+            } else {
+                css_selector_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// The body of @keyframes: from / to / percentage selectors, each with a block.
+fn css_keyframes() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\/\*/ {
+                css_comment();
+            } else if /\}/ {
+                yield other;
+                return;
+            } else if /(?:from|to)\>/ {
+                yield constant.language;
+            } else if /-?\d+(?:\.\d+)?%/ {
+                yield constant.numeric;
+            } else if /\{/ {
+                yield other;
+                css_declarations();
+            } else if /./ {
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// One token of an at-rule prelude or a function's arguments.
+fn css_value_token() {
+    if /(url)\s*\(/ {
+        yield $1 as support.function;
+        yield other;
+        css_url_body();
+    } else if /(var)\s*\(/ {
+        yield $1 as support.function;
+        yield other;
+        if /--[\w-]+/ {
+            yield variable;
+        }
+        css_paren_body();
+    } else if /([\w-]+)\s*\(/ {
+        yield $1 as support.function;
+        css_paren_body();
+    } else {
+        css_value_leaf();
+    }
+}
+
+// A value token that opens no bracket.
+fn css_value_leaf() {
+    if /\/\*/ {
+        css_comment();
+    } else if /'/ {
+        css_squote_string();
+    } else if /"/ {
+        css_dquote_string();
+    } else if /#[0-9a-fA-F]{3,8}\>/ {
+        yield constant.numeric;
+    } else if /(?:inherit|initial|unset|revert-layer|revert|currentColor|transparent|none|auto|normal)\>/ {
+        yield constant.language;
+    } else if /--[\w-]+/ {
+        yield variable;
+    } else if /-?(?:\d+\.\d+|\.\d+|\d+)(?:[eE][+-]?\d+)?[a-zA-Z%]*/ {
+        yield constant.numeric;
+    } else if /[\w-]+/ {
+    } else if /./ {
+    }
+}
+
+// The prelude of a grouping at-rule, up to its `{` (or a bare `;`).
+fn css_prelude_to_rules() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\{/ {
+                yield other;
+                css_rules();
+                return;
+            } else if /;/ {
+                yield other;
+                return;
+            } else if /(?:and|or|not|only)\>/ {
+                yield keyword.other;
+            } else {
+                css_value_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+fn css_prelude_to_keyframes() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\{/ {
+                yield other;
+                css_keyframes();
+                return;
+            } else if /;/ {
+                yield other;
+                return;
+            } else {
+                css_value_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// Also used for any at-rule nested in a rule body, whose block holds
+// declarations rather than rules.
+fn css_prelude_to_decls() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\{/ {
+                yield other;
+                css_declarations();
+                return;
+            } else if /;/ {
+                yield other;
+                return;
+            } else if /(?:and|or|not|only)\>/ {
+                yield keyword.other;
+            } else {
+                css_value_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// The rest of a block-less at-rule: @import, @charset, @namespace.
+fn css_statement_tail() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /;/ {
+                yield other;
+                return;
+            } else {
+                css_value_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+// A function's arguments, entered past its `(`. A `}` ends it as well, so an
+// unclosed `(` can't swallow the rest of the file.
+fn css_paren_body() {
+    loop {
+        until /$/ {
+            yield other;
+
+            if /\)/ {
+                yield other;
+                return;
+            } else if /\}/ {
+                yield other;
+                return;
+            } else {
+                css_value_token();
+            }
+
+            yield other;
+        }
+        await input;
+    }
+}
+
+fn css_url_body() {
+    if /"/ {
+        css_dquote_string();
+        if /\)/ {
+            yield other;
+        }
+    } else if /'/ {
+        css_squote_string();
+        if /\)/ {
+            yield other;
+        }
+    } else {
+        loop {
+            if /[^)}]+/ {}
+            yield string;
+            if /\)/ {
+                yield other;
+                break;
+            } else if /$/ {
+                await input;
+            } else {
+                // Leave a `}` to the enclosing block: an unclosed bare url(
+                // must not swallow the rest of the file.
+                break;
+            }
+        }
+    }
+}
+
+fn css_comment() {
+    loop {
+        yield comment;
+        await input;
+        if /\*\// {
+            yield comment;
+            break;
+        }
+    }
+}
+
+fn css_dquote_string() {
+    loop {
+        if /[^"\\]+/ {}
+        yield string;
+        if /\\$/ {
+            // Backslash-newline continues the literal; anything else left
+            // open stops at the line end, as the language does.
+            await input;
+        } else if /\\./ {
+            yield constant.character.escape;
+        } else if /"/ {
+            yield string;
+            break;
+        } else {
+            break;
+        }
+    }
+}
+
+fn css_squote_string() {
+    loop {
+        if /[^'\\]+/ {}
+        yield string;
+        if /\\$/ {
+            // Backslash-newline continues the literal; anything else left
+            // open stops at the line end, as the language does.
+            await input;
+        } else if /\\./ {
+            yield constant.character.escape;
+        } else if /'/ {
+            yield string;
+            break;
+        } else {
+            break;
+        }
+    }
+}

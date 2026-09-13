@@ -1,0 +1,155 @@
+@charset "UTF-8";
+
+@import url("fonts/example.woff2") screen;
+@import "shared/reset.css";
+
+/* Base custom properties.
+   This comment spans a couple of lines on purpose. */
+:root {
+  --brand-color: #3366ff;
+  --gap: 1.4rem;
+  --radius: 4px;
+}
+
+@font-face {
+  font-family: "Example Sans";
+  src: url(fonts/example.woff2) format("woff2"),
+       url("fonts/example.woff") format('woff');
+  font-weight: 100 800;
+}
+
+@page {
+  margin: 1in;
+}
+
+@page :first {
+  margin-top: 2in;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+}
+
+body {
+  background: var(--brand-color);
+  color: #FFF;
+  min-height: 100dvh;
+  letter-spacing: -0.0025em;
+  line-height: 1.4;
+  padding: 3px clamp(1rem, 2.5vw, 2rem);
+  width: calc(100% - var(--gap));
+}
+
+a:hover,
+a:focus-visible {
+  color: rgb(0, 51, 255);
+  text-decoration: underline !important;
+}
+
+a::before {
+  content: attr(data-label);
+}
+
+.card > .title + .subtitle ~ .note {
+  border-radius: var(--radius, 4px);
+}
+
+#error-id {
+  fill: #d30001;
+}
+
+input[type="text"],
+input[type=email] {
+  border: 1px solid #ccc;
+}
+
+a[class*="btn"], a[href^="https://"], a[href$=".pdf"] {
+  text-decoration: none;
+}
+
+ul > li:not(.hidden) {
+  list-style: none;
+}
+
+.panel {
+  display: grid;
+  gap: var(--gap);
+
+  &:hover {
+    background: #eee;
+  }
+
+  & > .panel-body {
+    padding: 1em;
+  }
+
+  @media (min-width: 48em) {
+    display: flex;
+  }
+}
+
+.card {
+  color: #222;
+
+  a {
+    color: blue;
+  }
+
+  background: #fff;
+}
+
+@media screen and (min-width: 40em), print {
+  body {
+    font-size: 120%;
+  }
+
+  .card {
+    width: min(100%, 30em);
+  }
+}
+
+@supports (display: grid) and (gap: 1em) {
+  .grid {
+    display: grid;
+  }
+}
+
+@container (min-width: 20em) {
+  .box {
+    padding: 2em;
+  }
+}
+
+@layer reset, base, components;
+
+@layer base {
+  body {
+    font-family: sans-serif;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 0.5;
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.quote::after {
+  content: "he said \"hi\"\A watch the newline";
+}
+
+.escaped {
+  content: 'it\'s fine';
+}
