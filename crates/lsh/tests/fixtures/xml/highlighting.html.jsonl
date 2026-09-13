@@ -41,12 +41,28 @@
 {"line":9,"kind":"other","text":"    <"}
 {"line":9,"kind":"constant.language","text":"style"}
 {"line":9,"kind":"other","text":">"}
-{"line":10,"kind":"other","text":"        body {"}
-{"line":11,"kind":"other","text":"            margin: 0;"}
-{"line":12,"kind":"other","text":"            padding: 20px;"}
+{"line":10,"kind":"other","text":"        "}
+{"line":10,"kind":"constant.language","text":"body"}
+{"line":10,"kind":"other","text":" {"}
+{"line":11,"kind":"other","text":"            "}
+{"line":11,"kind":"variable","text":"margin"}
+{"line":11,"kind":"other","text":": "}
+{"line":11,"kind":"constant.numeric","text":"0"}
+{"line":11,"kind":"other","text":";"}
+{"line":12,"kind":"other","text":"            "}
+{"line":12,"kind":"variable","text":"padding"}
+{"line":12,"kind":"other","text":": "}
+{"line":12,"kind":"constant.numeric","text":"20px"}
+{"line":12,"kind":"other","text":";"}
 {"line":13,"kind":"other","text":"        }"}
-{"line":15,"kind":"other","text":"        .test {"}
-{"line":16,"kind":"other","text":"            color: #ff0000;"}
+{"line":15,"kind":"other","text":"        "}
+{"line":15,"kind":"storage.type","text":".test"}
+{"line":15,"kind":"other","text":" {"}
+{"line":16,"kind":"other","text":"            "}
+{"line":16,"kind":"variable","text":"color"}
+{"line":16,"kind":"other","text":": "}
+{"line":16,"kind":"constant.numeric","text":"#ff0000"}
+{"line":16,"kind":"other","text":";"}
 {"line":17,"kind":"other","text":"        }"}
 {"line":18,"kind":"other","text":"    </"}
 {"line":18,"kind":"constant.language","text":"style"}
@@ -176,8 +192,18 @@
 {"line":44,"kind":"other","text":"    <"}
 {"line":44,"kind":"constant.language","text":"script"}
 {"line":44,"kind":"other","text":">"}
-{"line":45,"kind":"other","text":"        function test() {"}
-{"line":46,"kind":"other","text":"            return x < 10 && y > 5;"}
+{"line":45,"kind":"other","text":"        "}
+{"line":45,"kind":"keyword.other","text":"function"}
+{"line":45,"kind":"other","text":" "}
+{"line":45,"kind":"method","text":"test"}
+{"line":45,"kind":"other","text":"() {"}
+{"line":46,"kind":"other","text":"            "}
+{"line":46,"kind":"keyword.control","text":"return"}
+{"line":46,"kind":"other","text":" x < "}
+{"line":46,"kind":"constant.numeric","text":"10"}
+{"line":46,"kind":"other","text":" && y > "}
+{"line":46,"kind":"constant.numeric","text":"5"}
+{"line":46,"kind":"other","text":";"}
 {"line":47,"kind":"other","text":"        }"}
 {"line":48,"kind":"other","text":"    </"}
 {"line":48,"kind":"constant.language","text":"script"}

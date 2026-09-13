@@ -1,0 +1,42 @@
+<!\x1b[94mDOCTYPE\x1b[m html>
+<\x1b[94mhtml\x1b[m>
+<\x1b[94mhead\x1b[m>
+  <\x1b[94mtitle\x1b[m>Embed test</\x1b[94mtitle\x1b[m>
+  <\x1b[94mstyle\x1b[m>\x1b[94ma\x1b[m{\x1b[96mcolor\x1b[m:red}</\x1b[94mstyle\x1b[m>
+  <\x1b[94mSTYLE\x1b[m \x1b[96mmedia\x1b[m=\x1b[91m"print"\x1b[m>
+    \x1b[94mbody\x1b[m {
+      \x1b[96mmargin\x1b[m: \x1b[92m0\x1b[m;
+      \x1b[32m/* multi\x1b[m
+\x1b[32m         line comment */\x1b[m
+      \x1b[96mcolor\x1b[m: \x1b[92m#fff\x1b[m;
+    }
+    \x1b[36m.foo\x1b[m\x1b[94m::before\x1b[m { \x1b[96mcontent\x1b[m: \x1b[91m"</notreal>"\x1b[m; }
+  </\x1b[94mSTYLE\x1b[m>
+  <\x1b[94mscript\x1b[m \x1b[96mtype\x1b[m=\x1b[91m"module"\x1b[m \x1b[96msrc\x1b[m=\x1b[91m"app.js"\x1b[m></\x1b[94mscript\x1b[m>
+  <\x1b[94mScript\x1b[m>
+    \x1b[94mfunction\x1b[m \x1b[93mgreet\x1b[m(name) {
+      \x1b[95mif\x1b[m (name.length < \x1b[92m10\x1b[m) {
+        console.\x1b[93mlog\x1b[m(\x1b[91m"hi "\x1b[m + name);
+      }
+      \x1b[94mvar\x1b[m s = \x1b[91m"a string with </ inside"\x1b[m;
+    }
+  </\x1b[94mScript\x1b[m>
+  <\x1b[94mscript\x1b[m>\x1b[93mgo\x1b[m()</\x1b[94mscript\x1b[m>
+</\x1b[94mhead\x1b[m>
+<\x1b[94mbody\x1b[m>
+  <\x1b[94msvg\x1b[m \x1b[96mviewBox\x1b[m=\x1b[91m"0 0 10 10"\x1b[m>
+    <\x1b[94mstyle\x1b[m>
+      \x1b[94mcircle\x1b[m { \x1b[96mfill\x1b[m: blue; }
+    </\x1b[94mstyle\x1b[m>
+    <\x1b[94mcircle\x1b[m \x1b[96mcx\x1b[m=\x1b[91m"5"\x1b[m \x1b[96mcy\x1b[m=\x1b[91m"5"\x1b[m \x1b[96mr\x1b[m=\x1b[91m"4"\x1b[m/>
+  </\x1b[94msvg\x1b[m>
+  <\x1b[94mstyle\x1b[m>
+    \x1b[95m@media\x1b[m (max-width: \x1b[92m40em\x1b[m) {
+      \x1b[94mbody\x1b[m { \x1b[96mmargin\x1b[m: \x1b[92m0\x1b[m; }
+    }
+  </\x1b[94mstyle\x1b[m>
+  <\x1b[94mp\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"after"\x1b[m>Back to html \x1b[92m&amp;\x1b[m text.</\x1b[94mp\x1b[m>
+  <\x1b[94mscript\x1b[m \x1b[96msrc\x1b[m=\x1b[91m"empty.js"\x1b[m/>
+</\x1b[94mbody\x1b[m>
+</\x1b[94mhtml\x1b[m>
+

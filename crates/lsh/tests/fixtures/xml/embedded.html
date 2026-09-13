@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Embed test</title>
+  <style>a{color:red}</style>
+  <STYLE media="print">
+    body {
+      margin: 0;
+      /* multi
+         line comment */
+      color: #fff;
+    }
+    .foo::before { content: "</notreal>"; }
+  </STYLE>
+  <script type="module" src="app.js"></script>
+  <Script>
+    function greet(name) {
+      if (name.length < 10) {
+        console.log("hi " + name);
+      }
+      var s = "a string with </ inside";
+    }
+  </Script>
+  <script>go()</script>
+</head>
+<body>
+  <svg viewBox="0 0 10 10">
+    <style>
+      circle { fill: blue; }
+    </style>
+    <circle cx="5" cy="5" r="4"/>
+  </svg>
+  <style>
+    @media (max-width: 40em) {
+      body { margin: 0; }
+    }
+  </style>
+  <p class="after">Back to html &amp; text.</p>
+  <script src="empty.js"/>
+</body>
+</html>

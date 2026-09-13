@@ -41,6 +41,14 @@ pub fn xml() {
         } else if /<!(DOCTYPE)[^>]*>/ {
             yield $1 as constant.language;
             yield other;
+        } else if /(?i:<(style))\>/ {
+            yield $1 as constant.language;
+            yield other;
+            xml_style_open();
+        } else if /(?i:<(script))\>/ {
+            yield $1 as constant.language;
+            yield other;
+            xml_script_open();
         } else if /(?:<\?|<)([\w:.-]+)/ {
             yield $1 as constant.language;
             yield other;
@@ -76,5 +84,125 @@ pub fn xml() {
         }
 
         yield other;
+    }
+}
+
+// The rest of a <style> opening tag, then, unless it self-closes (SVG), its
+// body as CSS. xml_script_open() is a copy: functions take no arguments.
+fn xml_style_open() {
+    var one = 1;
+    var self_closed = 0;
+    loop {
+        if /\/>/ {
+            self_closed = one;
+            yield other;
+            break;
+        } else if />/ {
+            yield other;
+            break;
+        } else {
+            yield other;
+            await input;
+            if /([\w:.-]+)\s*=/ {
+                yield $1 as variable;
+                yield other;
+            } else if /"/ {
+                until /"/ { yield string; await input; }
+                yield string;
+            } else if /'/ {
+                until /'/ { yield string; await input; }
+                yield string;
+            } else if /./ {
+                // Boolean attribute or stray byte before the closing '>'.
+            }
+        }
+    }
+
+    if self_closed == one {
+        return;
+    }
+
+    loop {
+        until /$/ {
+            yield other;
+            if /<!\[CDATA\[/ {
+                loop {
+                    yield string;
+                    await input;
+                    if /\]\]>/ {
+                        yield string;
+                        break;
+                    }
+                }
+            } else if /<\/((?i:style))\s*>/ {
+                yield $1 as constant.language;
+                yield other;
+                return;
+            } else {
+                css_rules_token();
+            }
+            yield other;
+        }
+        await input;
+    }
+}
+
+// A closing tag inside a construct that spans lines (a block comment, a
+// declarations block) is only seen once that construct ends.
+fn xml_script_open() {
+    var one = 1;
+    var self_closed = 0;
+    loop {
+        if /\/>/ {
+            self_closed = one;
+            yield other;
+            break;
+        } else if />/ {
+            yield other;
+            break;
+        } else {
+            yield other;
+            await input;
+            if /([\w:.-]+)\s*=/ {
+                yield $1 as variable;
+                yield other;
+            } else if /"/ {
+                until /"/ { yield string; await input; }
+                yield string;
+            } else if /'/ {
+                until /'/ { yield string; await input; }
+                yield string;
+            } else if /./ {
+                // Boolean attribute or stray byte before the closing '>'.
+            }
+        }
+    }
+
+    if self_closed == one {
+        return;
+    }
+
+    loop {
+        until /$/ {
+            yield other;
+            if /<!\[CDATA\[/ {
+                loop {
+                    yield string;
+                    await input;
+                    if /\]\]>/ {
+                        yield string;
+                        break;
+                    }
+                }
+            } else if /<\/((?i:script))\s*>/ {
+                yield $1 as constant.language;
+                yield other;
+                return;
+            } else {
+                javascript_token();
+            }
+            yield other;
+        }
+        await input;
     }
 }

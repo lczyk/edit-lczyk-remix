@@ -1,0 +1,191 @@
+{"line":1,"kind":"other","text":"<!"}
+{"line":1,"kind":"constant.language","text":"DOCTYPE"}
+{"line":1,"kind":"other","text":" html>"}
+{"line":2,"kind":"other","text":"<"}
+{"line":2,"kind":"constant.language","text":"html"}
+{"line":2,"kind":"other","text":">"}
+{"line":3,"kind":"other","text":"<"}
+{"line":3,"kind":"constant.language","text":"head"}
+{"line":3,"kind":"other","text":">"}
+{"line":4,"kind":"other","text":"  <"}
+{"line":4,"kind":"constant.language","text":"title"}
+{"line":4,"kind":"other","text":">Embed test</"}
+{"line":4,"kind":"constant.language","text":"title"}
+{"line":4,"kind":"other","text":">"}
+{"line":5,"kind":"other","text":"  <"}
+{"line":5,"kind":"constant.language","text":"style"}
+{"line":5,"kind":"other","text":">"}
+{"line":5,"kind":"constant.language","text":"a"}
+{"line":5,"kind":"other","text":"{"}
+{"line":5,"kind":"variable","text":"color"}
+{"line":5,"kind":"other","text":":red}</"}
+{"line":5,"kind":"constant.language","text":"style"}
+{"line":5,"kind":"other","text":">"}
+{"line":6,"kind":"other","text":"  <"}
+{"line":6,"kind":"constant.language","text":"STYLE"}
+{"line":6,"kind":"other","text":" "}
+{"line":6,"kind":"variable","text":"media"}
+{"line":6,"kind":"other","text":"="}
+{"line":6,"kind":"string","text":"\"print\""}
+{"line":6,"kind":"other","text":">"}
+{"line":7,"kind":"other","text":"    "}
+{"line":7,"kind":"constant.language","text":"body"}
+{"line":7,"kind":"other","text":" {"}
+{"line":8,"kind":"other","text":"      "}
+{"line":8,"kind":"variable","text":"margin"}
+{"line":8,"kind":"other","text":": "}
+{"line":8,"kind":"constant.numeric","text":"0"}
+{"line":8,"kind":"other","text":";"}
+{"line":9,"kind":"other","text":"      "}
+{"line":9,"kind":"comment","text":"/* multi"}
+{"line":10,"kind":"comment","text":"         line comment */"}
+{"line":11,"kind":"other","text":"      "}
+{"line":11,"kind":"variable","text":"color"}
+{"line":11,"kind":"other","text":": "}
+{"line":11,"kind":"constant.numeric","text":"#fff"}
+{"line":11,"kind":"other","text":";"}
+{"line":12,"kind":"other","text":"    }"}
+{"line":13,"kind":"other","text":"    "}
+{"line":13,"kind":"storage.type","text":".foo"}
+{"line":13,"kind":"constant.language","text":"::before"}
+{"line":13,"kind":"other","text":" { "}
+{"line":13,"kind":"variable","text":"content"}
+{"line":13,"kind":"other","text":": "}
+{"line":13,"kind":"string","text":"\"</notreal>\""}
+{"line":13,"kind":"other","text":"; }"}
+{"line":14,"kind":"other","text":"  </"}
+{"line":14,"kind":"constant.language","text":"STYLE"}
+{"line":14,"kind":"other","text":">"}
+{"line":15,"kind":"other","text":"  <"}
+{"line":15,"kind":"constant.language","text":"script"}
+{"line":15,"kind":"other","text":" "}
+{"line":15,"kind":"variable","text":"type"}
+{"line":15,"kind":"other","text":"="}
+{"line":15,"kind":"string","text":"\"module\""}
+{"line":15,"kind":"other","text":" "}
+{"line":15,"kind":"variable","text":"src"}
+{"line":15,"kind":"other","text":"="}
+{"line":15,"kind":"string","text":"\"app.js\""}
+{"line":15,"kind":"other","text":"></"}
+{"line":15,"kind":"constant.language","text":"script"}
+{"line":15,"kind":"other","text":">"}
+{"line":16,"kind":"other","text":"  <"}
+{"line":16,"kind":"constant.language","text":"Script"}
+{"line":16,"kind":"other","text":">"}
+{"line":17,"kind":"other","text":"    "}
+{"line":17,"kind":"keyword.other","text":"function"}
+{"line":17,"kind":"other","text":" "}
+{"line":17,"kind":"method","text":"greet"}
+{"line":17,"kind":"other","text":"(name) {"}
+{"line":18,"kind":"other","text":"      "}
+{"line":18,"kind":"keyword.control","text":"if"}
+{"line":18,"kind":"other","text":" (name.length < "}
+{"line":18,"kind":"constant.numeric","text":"10"}
+{"line":18,"kind":"other","text":") {"}
+{"line":19,"kind":"other","text":"        console."}
+{"line":19,"kind":"method","text":"log"}
+{"line":19,"kind":"other","text":"("}
+{"line":19,"kind":"string","text":"\"hi \""}
+{"line":19,"kind":"other","text":" + name);"}
+{"line":20,"kind":"other","text":"      }"}
+{"line":21,"kind":"other","text":"      "}
+{"line":21,"kind":"keyword.other","text":"var"}
+{"line":21,"kind":"other","text":" s = "}
+{"line":21,"kind":"string","text":"\"a string with </ inside\""}
+{"line":21,"kind":"other","text":";"}
+{"line":22,"kind":"other","text":"    }"}
+{"line":23,"kind":"other","text":"  </"}
+{"line":23,"kind":"constant.language","text":"Script"}
+{"line":23,"kind":"other","text":">"}
+{"line":24,"kind":"other","text":"  <"}
+{"line":24,"kind":"constant.language","text":"script"}
+{"line":24,"kind":"other","text":">"}
+{"line":24,"kind":"method","text":"go"}
+{"line":24,"kind":"other","text":"()</"}
+{"line":24,"kind":"constant.language","text":"script"}
+{"line":24,"kind":"other","text":">"}
+{"line":25,"kind":"other","text":"</"}
+{"line":25,"kind":"constant.language","text":"head"}
+{"line":25,"kind":"other","text":">"}
+{"line":26,"kind":"other","text":"<"}
+{"line":26,"kind":"constant.language","text":"body"}
+{"line":26,"kind":"other","text":">"}
+{"line":27,"kind":"other","text":"  <"}
+{"line":27,"kind":"constant.language","text":"svg"}
+{"line":27,"kind":"other","text":" "}
+{"line":27,"kind":"variable","text":"viewBox"}
+{"line":27,"kind":"other","text":"="}
+{"line":27,"kind":"string","text":"\"0 0 10 10\""}
+{"line":27,"kind":"other","text":">"}
+{"line":28,"kind":"other","text":"    <"}
+{"line":28,"kind":"constant.language","text":"style"}
+{"line":28,"kind":"other","text":">"}
+{"line":29,"kind":"other","text":"      "}
+{"line":29,"kind":"constant.language","text":"circle"}
+{"line":29,"kind":"other","text":" { "}
+{"line":29,"kind":"variable","text":"fill"}
+{"line":29,"kind":"other","text":": blue; }"}
+{"line":30,"kind":"other","text":"    </"}
+{"line":30,"kind":"constant.language","text":"style"}
+{"line":30,"kind":"other","text":">"}
+{"line":31,"kind":"other","text":"    <"}
+{"line":31,"kind":"constant.language","text":"circle"}
+{"line":31,"kind":"other","text":" "}
+{"line":31,"kind":"variable","text":"cx"}
+{"line":31,"kind":"other","text":"="}
+{"line":31,"kind":"string","text":"\"5\""}
+{"line":31,"kind":"other","text":" "}
+{"line":31,"kind":"variable","text":"cy"}
+{"line":31,"kind":"other","text":"="}
+{"line":31,"kind":"string","text":"\"5\""}
+{"line":31,"kind":"other","text":" "}
+{"line":31,"kind":"variable","text":"r"}
+{"line":31,"kind":"other","text":"="}
+{"line":31,"kind":"string","text":"\"4\""}
+{"line":31,"kind":"other","text":"/>"}
+{"line":32,"kind":"other","text":"  </"}
+{"line":32,"kind":"constant.language","text":"svg"}
+{"line":32,"kind":"other","text":">"}
+{"line":33,"kind":"other","text":"  <"}
+{"line":33,"kind":"constant.language","text":"style"}
+{"line":33,"kind":"other","text":">"}
+{"line":34,"kind":"other","text":"    "}
+{"line":34,"kind":"keyword.control","text":"@media"}
+{"line":34,"kind":"other","text":" (max-width: "}
+{"line":34,"kind":"constant.numeric","text":"40em"}
+{"line":34,"kind":"other","text":") {"}
+{"line":35,"kind":"other","text":"      "}
+{"line":35,"kind":"constant.language","text":"body"}
+{"line":35,"kind":"other","text":" { "}
+{"line":35,"kind":"variable","text":"margin"}
+{"line":35,"kind":"other","text":": "}
+{"line":35,"kind":"constant.numeric","text":"0"}
+{"line":35,"kind":"other","text":"; }"}
+{"line":36,"kind":"other","text":"    }"}
+{"line":37,"kind":"other","text":"  </"}
+{"line":37,"kind":"constant.language","text":"style"}
+{"line":37,"kind":"other","text":">"}
+{"line":38,"kind":"other","text":"  <"}
+{"line":38,"kind":"constant.language","text":"p"}
+{"line":38,"kind":"other","text":" "}
+{"line":38,"kind":"variable","text":"class"}
+{"line":38,"kind":"other","text":"="}
+{"line":38,"kind":"string","text":"\"after\""}
+{"line":38,"kind":"other","text":">Back to html "}
+{"line":38,"kind":"constant.numeric","text":"&amp;"}
+{"line":38,"kind":"other","text":" text.</"}
+{"line":38,"kind":"constant.language","text":"p"}
+{"line":38,"kind":"other","text":">"}
+{"line":39,"kind":"other","text":"  <"}
+{"line":39,"kind":"constant.language","text":"script"}
+{"line":39,"kind":"other","text":" "}
+{"line":39,"kind":"variable","text":"src"}
+{"line":39,"kind":"other","text":"="}
+{"line":39,"kind":"string","text":"\"empty.js\""}
+{"line":39,"kind":"other","text":"/>"}
+{"line":40,"kind":"other","text":"</"}
+{"line":40,"kind":"constant.language","text":"body"}
+{"line":40,"kind":"other","text":">"}
+{"line":41,"kind":"other","text":"</"}
+{"line":41,"kind":"constant.language","text":"html"}
+{"line":41,"kind":"other","text":">"}
