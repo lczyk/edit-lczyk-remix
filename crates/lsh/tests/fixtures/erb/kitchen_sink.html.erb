@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<%# Kitchen sink fixture for ERB highlighting. Synthetic, not from any real
+    project: markup, embedded Ruby, comments, literals, and entities. %>
+<html lang="en">
+  <head>
+    <title><%= content_for(:title) || "Kitchen Sink" %></title>
+    <meta charset="utf-8">
+    <%= yield :head %>
+  </head>
+  <body class="<%= content_for(:body_class) || "default" %>">
+    <!-- top navigation -->
+    <nav class="site-nav <%= "nav--#{current_theme}" %>">
+      <a href="/">Home</a>
+      <a href="/about">About &amp; Contact</a>
+    </nav>
+
+    <%- # trim tag: no leading blank line in the rendered output -%>
+    <main>
+      <p>Use <%%= foo %> to print an ERB tag literally.</p>
+      <%# a short single-line comment, unlike the multi-line one above %>
+
+      <%
+        @greeting = "hello, #{@user.name}"
+        @count = @items.size
+      %>
+      <p><%= @greeting %> &mdash; you have <%= @count %> items.</p>
+
+      <% if @items.empty? %>
+        <p class="empty">Nothing here yet.</p>
+      <% else %>
+        <ul class="item-list">
+          <% @items.each do |item| %>
+            <li id="item-<%= item.id %>" class="<%= item.active? ? "active" : "inactive" %>">
+              <%= link_to item.name, item_path(item), class: "item-link", data: { turbo: true } do %>
+                <span class="item-name"><%= item.name %></span>
+                <em>(<%= item.count %>)</em>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <%#
+        Multi-line comment: none of this should be highlighted as Ruby,
+        even things that look like code, such as @foo.bar(1, 2).
+      %>
+
+      <section
+        data-controller="items"
+        data-items-count-value="<%= @count %>"
+      >
+        <%= form_with url: items_path, method: :post do |f| %>
+          <%= f.label :name %>
+          <%= f.text_field :name, class: "input", placeholder: "New item" %>
+          <%= f.submit "Add" %>
+        <% end %>
+      </section>
+    </main>
+
+    <footer>
+      <small>&copy; <%= Time.current.year %> Kitchen Sink Inc.</small>
+    </footer>
+  </body>
+</html>

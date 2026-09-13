@@ -1,0 +1,143 @@
+#[display_name = "ERB"]
+#[block_comment_open = "<%#"]
+#[block_comment_close = "%>"]
+#[path = "**/*.erb"]
+pub fn erb() {
+    until /$/ {
+        yield other;
+
+        if /<%/ {
+            erb_tag();
+        } else if /<!--/ {
+            loop {
+                yield comment;
+                await input;
+                if /-->/ {
+                    yield comment;
+                    break;
+                }
+            }
+        } else if /<!\[CDATA\[/ {
+            loop {
+                yield string;
+                await input;
+                if /\]\]>/ {
+                    yield string;
+                    break;
+                }
+            }
+        } else if /<!(DOCTYPE)[^>]*>/ {
+            yield $1 as constant.language;
+            yield other;
+        } else if /(?:<\?|<)([\w:.-]+)/ {
+            yield $1 as constant.language;
+            yield other;
+
+            until />/ {
+                yield other;
+                await input;
+
+                if /<%/ {
+                    erb_tag();
+                    yield other;
+                } else if /([\w:.-]+)\s*=/ {
+                    yield $1 as variable;
+                    yield other;
+                } else if /"/ {
+                    erb_dquote_attr();
+                } else if /'/ {
+                    erb_squote_attr();
+                }
+            }
+
+            yield other;
+        } else if /<\/([\w:.-]+)\s*>/ {
+            yield $1 as constant.language;
+            yield other;
+        } else if /(?:&#|&)[\w:.-]+;/ {
+            yield constant.numeric;
+        }
+
+        yield other;
+    }
+}
+
+// Attribute values may contain ERB (class="<%= x %>"), so unlike xml.lsh's
+// plain "until closing-quote" loop, this also dispatches on "<%".
+fn erb_dquote_attr() {
+    loop {
+        yield string;
+        if /"/ {
+            yield string;
+            break;
+        } else if /<%/ {
+            erb_tag();
+        } else {
+            await input;
+        }
+    }
+}
+
+fn erb_squote_attr() {
+    loop {
+        yield string;
+        if /'/ {
+            yield string;
+            break;
+        } else if /<%/ {
+            erb_tag();
+        } else {
+            await input;
+        }
+    }
+}
+
+// Runs after "<%" is consumed. Loops calling ruby_token() one token at a
+// time so it -- not ruby_token() -- can stop at "-?%>", possibly lines later.
+fn erb_tag() {
+    if /%/ {
+        // "<%%" is a literal "<%" in the rendered output, not a real tag.
+        yield other;
+        return;
+    }
+
+    if /#/ {
+        yield comment;
+        loop {
+            yield comment;
+            await input;
+            if /-?%>/ {
+                yield comment;
+                return;
+            }
+        }
+    }
+
+    if /==?|-/ {}
+    yield keyword.other;
+
+    loop {
+        yield other;
+        if /-?%>/ {
+            yield keyword.other;
+            return;
+        } else if /$/ {
+            await input;
+        } else if /#/ {
+            // ruby_token()'s "#.*" runs to end of line and would swallow a
+            // same-line closer, so this checks for "-?%>" itself first.
+            yield comment;
+            loop {
+                yield comment;
+                if /-?%>/ {
+                    yield keyword.other;
+                    return;
+                } else if /$/ {
+                    break;
+                }
+            }
+        } else {
+            ruby_token();
+        }
+    }
+}

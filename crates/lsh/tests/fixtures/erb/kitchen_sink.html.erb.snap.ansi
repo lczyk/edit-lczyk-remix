@@ -1,0 +1,65 @@
+<!\x1b[94mDOCTYPE\x1b[m html>
+\x1b[32m<%# Kitchen sink fixture for ERB highlighting. Synthetic, not from any real\x1b[m
+\x1b[32m    project: markup, embedded Ruby, comments, literals, and entities. %>\x1b[m
+<\x1b[94mhtml\x1b[m \x1b[96mlang\x1b[m=\x1b[91m"en"\x1b[m>
+  <\x1b[94mhead\x1b[m>
+    <\x1b[94mtitle\x1b[m>\x1b[94m<%=\x1b[m \x1b[93mcontent_for\x1b[m(\x1b[94m:title\x1b[m) || \x1b[91m"Kitchen Sink"\x1b[m \x1b[94m%>\x1b[m</\x1b[94mtitle\x1b[m>
+    <\x1b[94mmeta\x1b[m \x1b[96mcharset\x1b[m=\x1b[91m"utf-8"\x1b[m>
+    \x1b[94m<%=\x1b[m \x1b[94myield\x1b[m \x1b[94m:head\x1b[m \x1b[94m%>\x1b[m
+  </\x1b[94mhead\x1b[m>
+  <\x1b[94mbody\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"\x1b[m\x1b[94m<%=\x1b[m \x1b[93mcontent_for\x1b[m(\x1b[94m:body_class\x1b[m) || \x1b[91m"default"\x1b[m \x1b[94m%>\x1b[m\x1b[91m"\x1b[m>
+    \x1b[32m<!-- top navigation -->\x1b[m
+    <\x1b[94mnav\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"site-nav \x1b[m\x1b[94m<%=\x1b[m \x1b[91m"nav--#{current_theme}"\x1b[m \x1b[94m%>\x1b[m\x1b[91m"\x1b[m>
+      <\x1b[94ma\x1b[m \x1b[96mhref\x1b[m=\x1b[91m"/"\x1b[m>Home</\x1b[94ma\x1b[m>
+      <\x1b[94ma\x1b[m \x1b[96mhref\x1b[m=\x1b[91m"/about"\x1b[m>About \x1b[92m&amp;\x1b[m Contact</\x1b[94ma\x1b[m>
+    </\x1b[94mnav\x1b[m>
+
+    \x1b[94m<%-\x1b[m \x1b[32m# trim tag: no leading blank line in the rendered output \x1b[m\x1b[94m-%>\x1b[m
+    <\x1b[94mmain\x1b[m>
+      <\x1b[94mp\x1b[m>Use <%%= foo %> to print an ERB tag literally.</\x1b[94mp\x1b[m>
+      \x1b[32m<%# a short single-line comment, unlike the multi-line one above %>\x1b[m
+
+      \x1b[94m<%\x1b[m
+        \x1b[96m@greeting\x1b[m = \x1b[91m"hello, #{@user.name}"\x1b[m
+        \x1b[96m@count\x1b[m = \x1b[96m@items\x1b[m.size
+      \x1b[94m%>\x1b[m
+      <\x1b[94mp\x1b[m>\x1b[94m<%=\x1b[m \x1b[96m@greeting\x1b[m \x1b[94m%>\x1b[m \x1b[92m&mdash;\x1b[m you have \x1b[94m<%=\x1b[m \x1b[96m@count\x1b[m \x1b[94m%>\x1b[m items.</\x1b[94mp\x1b[m>
+
+      \x1b[94m<%\x1b[m \x1b[95mif\x1b[m \x1b[96m@items\x1b[m.empty? \x1b[94m%>\x1b[m
+        <\x1b[94mp\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"empty"\x1b[m>Nothing here yet.</\x1b[94mp\x1b[m>
+      \x1b[94m<%\x1b[m \x1b[95melse\x1b[m \x1b[94m%>\x1b[m
+        <\x1b[94mul\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"item-list"\x1b[m>
+          \x1b[94m<%\x1b[m \x1b[96m@items\x1b[m.each \x1b[95mdo\x1b[m |item| \x1b[94m%>\x1b[m
+            <\x1b[94mli\x1b[m \x1b[96mid\x1b[m=\x1b[91m"item-\x1b[m\x1b[94m<%=\x1b[m item.id \x1b[94m%>\x1b[m\x1b[91m"\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"\x1b[m\x1b[94m<%=\x1b[m item.active? ? \x1b[91m"active"\x1b[m : \x1b[91m"inactive"\x1b[m \x1b[94m%>\x1b[m\x1b[91m"\x1b[m>
+              \x1b[94m<%=\x1b[m link_to item.name, \x1b[93mitem_path\x1b[m(item), \x1b[95mclass\x1b[m: \x1b[91m"item-link"\x1b[m, data: { turbo: \x1b[94mtrue\x1b[m } \x1b[95mdo\x1b[m \x1b[94m%>\x1b[m
+                <\x1b[94mspan\x1b[m \x1b[96mclass\x1b[m=\x1b[91m"item-name"\x1b[m>\x1b[94m<%=\x1b[m item.name \x1b[94m%>\x1b[m</\x1b[94mspan\x1b[m>
+                <\x1b[94mem\x1b[m>(\x1b[94m<%=\x1b[m item.count \x1b[94m%>\x1b[m)</\x1b[94mem\x1b[m>
+              \x1b[94m<%\x1b[m \x1b[95mend\x1b[m \x1b[94m%>\x1b[m
+            </\x1b[94mli\x1b[m>
+          \x1b[94m<%\x1b[m \x1b[95mend\x1b[m \x1b[94m%>\x1b[m
+        </\x1b[94mul\x1b[m>
+      \x1b[94m<%\x1b[m \x1b[95mend\x1b[m \x1b[94m%>\x1b[m
+
+      \x1b[32m<%#\x1b[m
+\x1b[32m        Multi-line comment: none of this should be highlighted as Ruby,\x1b[m
+\x1b[32m        even things that look like code, such as @foo.bar(1, 2).\x1b[m
+\x1b[32m      %>\x1b[m
+
+      <\x1b[94msection\x1b[m
+        \x1b[96mdata-controller\x1b[m=\x1b[91m"items"\x1b[m
+        \x1b[96mdata-items-count-value\x1b[m=\x1b[91m"\x1b[m\x1b[94m<%=\x1b[m \x1b[96m@count\x1b[m \x1b[94m%>\x1b[m\x1b[91m"\x1b[m
+      >
+        \x1b[94m<%=\x1b[m form_with url: items_path, method: \x1b[94m:post\x1b[m \x1b[95mdo\x1b[m |f| \x1b[94m%>\x1b[m
+          \x1b[94m<%=\x1b[m f.label \x1b[94m:name\x1b[m \x1b[94m%>\x1b[m
+          \x1b[94m<%=\x1b[m f.text_field \x1b[94m:name\x1b[m, \x1b[95mclass\x1b[m: \x1b[91m"input"\x1b[m, placeholder: \x1b[91m"New item"\x1b[m \x1b[94m%>\x1b[m
+          \x1b[94m<%=\x1b[m f.submit \x1b[91m"Add"\x1b[m \x1b[94m%>\x1b[m
+        \x1b[94m<%\x1b[m \x1b[95mend\x1b[m \x1b[94m%>\x1b[m
+      </\x1b[94msection\x1b[m>
+    </\x1b[94mmain\x1b[m>
+
+    <\x1b[94mfooter\x1b[m>
+      <\x1b[94msmall\x1b[m>\x1b[92m&copy;\x1b[m \x1b[94m<%=\x1b[m \x1b[94mTime\x1b[m.current.year \x1b[94m%>\x1b[m Kitchen Sink Inc.</\x1b[94msmall\x1b[m>
+    </\x1b[94mfooter\x1b[m>
+  </\x1b[94mbody\x1b[m>
+</\x1b[94mhtml\x1b[m>
+

@@ -1,0 +1,362 @@
+{"line":1,"kind":"other","text":"<!"}
+{"line":1,"kind":"constant.language","text":"DOCTYPE"}
+{"line":1,"kind":"other","text":" html>"}
+{"line":2,"kind":"comment","text":"<%# Kitchen sink fixture for ERB highlighting. Synthetic, not from any real"}
+{"line":3,"kind":"comment","text":"    project: markup, embedded Ruby, comments, literals, and entities. %>"}
+{"line":4,"kind":"other","text":"<"}
+{"line":4,"kind":"constant.language","text":"html"}
+{"line":4,"kind":"other","text":" "}
+{"line":4,"kind":"variable","text":"lang"}
+{"line":4,"kind":"other","text":"="}
+{"line":4,"kind":"string","text":"\"en\""}
+{"line":4,"kind":"other","text":">"}
+{"line":5,"kind":"other","text":"  <"}
+{"line":5,"kind":"constant.language","text":"head"}
+{"line":5,"kind":"other","text":">"}
+{"line":6,"kind":"other","text":"    <"}
+{"line":6,"kind":"constant.language","text":"title"}
+{"line":6,"kind":"other","text":">"}
+{"line":6,"kind":"keyword.other","text":"<%="}
+{"line":6,"kind":"other","text":" "}
+{"line":6,"kind":"method","text":"content_for"}
+{"line":6,"kind":"other","text":"("}
+{"line":6,"kind":"constant.language","text":":title"}
+{"line":6,"kind":"other","text":") || "}
+{"line":6,"kind":"string","text":"\"Kitchen Sink\""}
+{"line":6,"kind":"other","text":" "}
+{"line":6,"kind":"keyword.other","text":"%>"}
+{"line":6,"kind":"other","text":"</"}
+{"line":6,"kind":"constant.language","text":"title"}
+{"line":6,"kind":"other","text":">"}
+{"line":7,"kind":"other","text":"    <"}
+{"line":7,"kind":"constant.language","text":"meta"}
+{"line":7,"kind":"other","text":" "}
+{"line":7,"kind":"variable","text":"charset"}
+{"line":7,"kind":"other","text":"="}
+{"line":7,"kind":"string","text":"\"utf-8\""}
+{"line":7,"kind":"other","text":">"}
+{"line":8,"kind":"other","text":"    "}
+{"line":8,"kind":"keyword.other","text":"<%="}
+{"line":8,"kind":"other","text":" "}
+{"line":8,"kind":"keyword.other","text":"yield"}
+{"line":8,"kind":"other","text":" "}
+{"line":8,"kind":"constant.language","text":":head"}
+{"line":8,"kind":"other","text":" "}
+{"line":8,"kind":"keyword.other","text":"%>"}
+{"line":9,"kind":"other","text":"  </"}
+{"line":9,"kind":"constant.language","text":"head"}
+{"line":9,"kind":"other","text":">"}
+{"line":10,"kind":"other","text":"  <"}
+{"line":10,"kind":"constant.language","text":"body"}
+{"line":10,"kind":"other","text":" "}
+{"line":10,"kind":"variable","text":"class"}
+{"line":10,"kind":"other","text":"="}
+{"line":10,"kind":"string","text":"\""}
+{"line":10,"kind":"keyword.other","text":"<%="}
+{"line":10,"kind":"other","text":" "}
+{"line":10,"kind":"method","text":"content_for"}
+{"line":10,"kind":"other","text":"("}
+{"line":10,"kind":"constant.language","text":":body_class"}
+{"line":10,"kind":"other","text":") || "}
+{"line":10,"kind":"string","text":"\"default\""}
+{"line":10,"kind":"other","text":" "}
+{"line":10,"kind":"keyword.other","text":"%>"}
+{"line":10,"kind":"string","text":"\""}
+{"line":10,"kind":"other","text":">"}
+{"line":11,"kind":"other","text":"    "}
+{"line":11,"kind":"comment","text":"<!-- top navigation -->"}
+{"line":12,"kind":"other","text":"    <"}
+{"line":12,"kind":"constant.language","text":"nav"}
+{"line":12,"kind":"other","text":" "}
+{"line":12,"kind":"variable","text":"class"}
+{"line":12,"kind":"other","text":"="}
+{"line":12,"kind":"string","text":"\"site-nav "}
+{"line":12,"kind":"keyword.other","text":"<%="}
+{"line":12,"kind":"other","text":" "}
+{"line":12,"kind":"string","text":"\"nav--#{current_theme}\""}
+{"line":12,"kind":"other","text":" "}
+{"line":12,"kind":"keyword.other","text":"%>"}
+{"line":12,"kind":"string","text":"\""}
+{"line":12,"kind":"other","text":">"}
+{"line":13,"kind":"other","text":"      <"}
+{"line":13,"kind":"constant.language","text":"a"}
+{"line":13,"kind":"other","text":" "}
+{"line":13,"kind":"variable","text":"href"}
+{"line":13,"kind":"other","text":"="}
+{"line":13,"kind":"string","text":"\"/\""}
+{"line":13,"kind":"other","text":">Home</"}
+{"line":13,"kind":"constant.language","text":"a"}
+{"line":13,"kind":"other","text":">"}
+{"line":14,"kind":"other","text":"      <"}
+{"line":14,"kind":"constant.language","text":"a"}
+{"line":14,"kind":"other","text":" "}
+{"line":14,"kind":"variable","text":"href"}
+{"line":14,"kind":"other","text":"="}
+{"line":14,"kind":"string","text":"\"/about\""}
+{"line":14,"kind":"other","text":">About "}
+{"line":14,"kind":"constant.numeric","text":"&amp;"}
+{"line":14,"kind":"other","text":" Contact</"}
+{"line":14,"kind":"constant.language","text":"a"}
+{"line":14,"kind":"other","text":">"}
+{"line":15,"kind":"other","text":"    </"}
+{"line":15,"kind":"constant.language","text":"nav"}
+{"line":15,"kind":"other","text":">"}
+{"line":17,"kind":"other","text":"    "}
+{"line":17,"kind":"keyword.other","text":"<%-"}
+{"line":17,"kind":"other","text":" "}
+{"line":17,"kind":"comment","text":"# trim tag: no leading blank line in the rendered output "}
+{"line":17,"kind":"keyword.other","text":"-%>"}
+{"line":18,"kind":"other","text":"    <"}
+{"line":18,"kind":"constant.language","text":"main"}
+{"line":18,"kind":"other","text":">"}
+{"line":19,"kind":"other","text":"      <"}
+{"line":19,"kind":"constant.language","text":"p"}
+{"line":19,"kind":"other","text":">Use <%%= foo %> to print an ERB tag literally.</"}
+{"line":19,"kind":"constant.language","text":"p"}
+{"line":19,"kind":"other","text":">"}
+{"line":20,"kind":"other","text":"      "}
+{"line":20,"kind":"comment","text":"<%# a short single-line comment, unlike the multi-line one above %>"}
+{"line":22,"kind":"other","text":"      "}
+{"line":22,"kind":"keyword.other","text":"<%"}
+{"line":23,"kind":"other","text":"        "}
+{"line":23,"kind":"variable","text":"@greeting"}
+{"line":23,"kind":"other","text":" = "}
+{"line":23,"kind":"string","text":"\"hello, #{@user.name}\""}
+{"line":24,"kind":"other","text":"        "}
+{"line":24,"kind":"variable","text":"@count"}
+{"line":24,"kind":"other","text":" = "}
+{"line":24,"kind":"variable","text":"@items"}
+{"line":24,"kind":"other","text":".size"}
+{"line":25,"kind":"other","text":"      "}
+{"line":25,"kind":"keyword.other","text":"%>"}
+{"line":26,"kind":"other","text":"      <"}
+{"line":26,"kind":"constant.language","text":"p"}
+{"line":26,"kind":"other","text":">"}
+{"line":26,"kind":"keyword.other","text":"<%="}
+{"line":26,"kind":"other","text":" "}
+{"line":26,"kind":"variable","text":"@greeting"}
+{"line":26,"kind":"other","text":" "}
+{"line":26,"kind":"keyword.other","text":"%>"}
+{"line":26,"kind":"other","text":" "}
+{"line":26,"kind":"constant.numeric","text":"&mdash;"}
+{"line":26,"kind":"other","text":" you have "}
+{"line":26,"kind":"keyword.other","text":"<%="}
+{"line":26,"kind":"other","text":" "}
+{"line":26,"kind":"variable","text":"@count"}
+{"line":26,"kind":"other","text":" "}
+{"line":26,"kind":"keyword.other","text":"%>"}
+{"line":26,"kind":"other","text":" items.</"}
+{"line":26,"kind":"constant.language","text":"p"}
+{"line":26,"kind":"other","text":">"}
+{"line":28,"kind":"other","text":"      "}
+{"line":28,"kind":"keyword.other","text":"<%"}
+{"line":28,"kind":"other","text":" "}
+{"line":28,"kind":"keyword.control","text":"if"}
+{"line":28,"kind":"other","text":" "}
+{"line":28,"kind":"variable","text":"@items"}
+{"line":28,"kind":"other","text":".empty? "}
+{"line":28,"kind":"keyword.other","text":"%>"}
+{"line":29,"kind":"other","text":"        <"}
+{"line":29,"kind":"constant.language","text":"p"}
+{"line":29,"kind":"other","text":" "}
+{"line":29,"kind":"variable","text":"class"}
+{"line":29,"kind":"other","text":"="}
+{"line":29,"kind":"string","text":"\"empty\""}
+{"line":29,"kind":"other","text":">Nothing here yet.</"}
+{"line":29,"kind":"constant.language","text":"p"}
+{"line":29,"kind":"other","text":">"}
+{"line":30,"kind":"other","text":"      "}
+{"line":30,"kind":"keyword.other","text":"<%"}
+{"line":30,"kind":"other","text":" "}
+{"line":30,"kind":"keyword.control","text":"else"}
+{"line":30,"kind":"other","text":" "}
+{"line":30,"kind":"keyword.other","text":"%>"}
+{"line":31,"kind":"other","text":"        <"}
+{"line":31,"kind":"constant.language","text":"ul"}
+{"line":31,"kind":"other","text":" "}
+{"line":31,"kind":"variable","text":"class"}
+{"line":31,"kind":"other","text":"="}
+{"line":31,"kind":"string","text":"\"item-list\""}
+{"line":31,"kind":"other","text":">"}
+{"line":32,"kind":"other","text":"          "}
+{"line":32,"kind":"keyword.other","text":"<%"}
+{"line":32,"kind":"other","text":" "}
+{"line":32,"kind":"variable","text":"@items"}
+{"line":32,"kind":"other","text":".each "}
+{"line":32,"kind":"keyword.control","text":"do"}
+{"line":32,"kind":"other","text":" |item| "}
+{"line":32,"kind":"keyword.other","text":"%>"}
+{"line":33,"kind":"other","text":"            <"}
+{"line":33,"kind":"constant.language","text":"li"}
+{"line":33,"kind":"other","text":" "}
+{"line":33,"kind":"variable","text":"id"}
+{"line":33,"kind":"other","text":"="}
+{"line":33,"kind":"string","text":"\"item-"}
+{"line":33,"kind":"keyword.other","text":"<%="}
+{"line":33,"kind":"other","text":" item.id "}
+{"line":33,"kind":"keyword.other","text":"%>"}
+{"line":33,"kind":"string","text":"\""}
+{"line":33,"kind":"other","text":" "}
+{"line":33,"kind":"variable","text":"class"}
+{"line":33,"kind":"other","text":"="}
+{"line":33,"kind":"string","text":"\""}
+{"line":33,"kind":"keyword.other","text":"<%="}
+{"line":33,"kind":"other","text":" item.active? ? "}
+{"line":33,"kind":"string","text":"\"active\""}
+{"line":33,"kind":"other","text":" : "}
+{"line":33,"kind":"string","text":"\"inactive\""}
+{"line":33,"kind":"other","text":" "}
+{"line":33,"kind":"keyword.other","text":"%>"}
+{"line":33,"kind":"string","text":"\""}
+{"line":33,"kind":"other","text":">"}
+{"line":34,"kind":"other","text":"              "}
+{"line":34,"kind":"keyword.other","text":"<%="}
+{"line":34,"kind":"other","text":" link_to item.name, "}
+{"line":34,"kind":"method","text":"item_path"}
+{"line":34,"kind":"other","text":"(item), "}
+{"line":34,"kind":"keyword.control","text":"class"}
+{"line":34,"kind":"other","text":": "}
+{"line":34,"kind":"string","text":"\"item-link\""}
+{"line":34,"kind":"other","text":", data: { turbo: "}
+{"line":34,"kind":"constant.language","text":"true"}
+{"line":34,"kind":"other","text":" } "}
+{"line":34,"kind":"keyword.control","text":"do"}
+{"line":34,"kind":"other","text":" "}
+{"line":34,"kind":"keyword.other","text":"%>"}
+{"line":35,"kind":"other","text":"                <"}
+{"line":35,"kind":"constant.language","text":"span"}
+{"line":35,"kind":"other","text":" "}
+{"line":35,"kind":"variable","text":"class"}
+{"line":35,"kind":"other","text":"="}
+{"line":35,"kind":"string","text":"\"item-name\""}
+{"line":35,"kind":"other","text":">"}
+{"line":35,"kind":"keyword.other","text":"<%="}
+{"line":35,"kind":"other","text":" item.name "}
+{"line":35,"kind":"keyword.other","text":"%>"}
+{"line":35,"kind":"other","text":"</"}
+{"line":35,"kind":"constant.language","text":"span"}
+{"line":35,"kind":"other","text":">"}
+{"line":36,"kind":"other","text":"                <"}
+{"line":36,"kind":"constant.language","text":"em"}
+{"line":36,"kind":"other","text":">("}
+{"line":36,"kind":"keyword.other","text":"<%="}
+{"line":36,"kind":"other","text":" item.count "}
+{"line":36,"kind":"keyword.other","text":"%>"}
+{"line":36,"kind":"other","text":")</"}
+{"line":36,"kind":"constant.language","text":"em"}
+{"line":36,"kind":"other","text":">"}
+{"line":37,"kind":"other","text":"              "}
+{"line":37,"kind":"keyword.other","text":"<%"}
+{"line":37,"kind":"other","text":" "}
+{"line":37,"kind":"keyword.control","text":"end"}
+{"line":37,"kind":"other","text":" "}
+{"line":37,"kind":"keyword.other","text":"%>"}
+{"line":38,"kind":"other","text":"            </"}
+{"line":38,"kind":"constant.language","text":"li"}
+{"line":38,"kind":"other","text":">"}
+{"line":39,"kind":"other","text":"          "}
+{"line":39,"kind":"keyword.other","text":"<%"}
+{"line":39,"kind":"other","text":" "}
+{"line":39,"kind":"keyword.control","text":"end"}
+{"line":39,"kind":"other","text":" "}
+{"line":39,"kind":"keyword.other","text":"%>"}
+{"line":40,"kind":"other","text":"        </"}
+{"line":40,"kind":"constant.language","text":"ul"}
+{"line":40,"kind":"other","text":">"}
+{"line":41,"kind":"other","text":"      "}
+{"line":41,"kind":"keyword.other","text":"<%"}
+{"line":41,"kind":"other","text":" "}
+{"line":41,"kind":"keyword.control","text":"end"}
+{"line":41,"kind":"other","text":" "}
+{"line":41,"kind":"keyword.other","text":"%>"}
+{"line":43,"kind":"other","text":"      "}
+{"line":43,"kind":"comment","text":"<%#"}
+{"line":44,"kind":"comment","text":"        Multi-line comment: none of this should be highlighted as Ruby,"}
+{"line":45,"kind":"comment","text":"        even things that look like code, such as @foo.bar(1, 2)."}
+{"line":46,"kind":"comment","text":"      %>"}
+{"line":48,"kind":"other","text":"      <"}
+{"line":48,"kind":"constant.language","text":"section"}
+{"line":49,"kind":"other","text":"        "}
+{"line":49,"kind":"variable","text":"data-controller"}
+{"line":49,"kind":"other","text":"="}
+{"line":49,"kind":"string","text":"\"items\""}
+{"line":50,"kind":"other","text":"        "}
+{"line":50,"kind":"variable","text":"data-items-count-value"}
+{"line":50,"kind":"other","text":"="}
+{"line":50,"kind":"string","text":"\""}
+{"line":50,"kind":"keyword.other","text":"<%="}
+{"line":50,"kind":"other","text":" "}
+{"line":50,"kind":"variable","text":"@count"}
+{"line":50,"kind":"other","text":" "}
+{"line":50,"kind":"keyword.other","text":"%>"}
+{"line":50,"kind":"string","text":"\""}
+{"line":51,"kind":"other","text":"      >"}
+{"line":52,"kind":"other","text":"        "}
+{"line":52,"kind":"keyword.other","text":"<%="}
+{"line":52,"kind":"other","text":" form_with url: items_path, method: "}
+{"line":52,"kind":"constant.language","text":":post"}
+{"line":52,"kind":"other","text":" "}
+{"line":52,"kind":"keyword.control","text":"do"}
+{"line":52,"kind":"other","text":" |f| "}
+{"line":52,"kind":"keyword.other","text":"%>"}
+{"line":53,"kind":"other","text":"          "}
+{"line":53,"kind":"keyword.other","text":"<%="}
+{"line":53,"kind":"other","text":" f.label "}
+{"line":53,"kind":"constant.language","text":":name"}
+{"line":53,"kind":"other","text":" "}
+{"line":53,"kind":"keyword.other","text":"%>"}
+{"line":54,"kind":"other","text":"          "}
+{"line":54,"kind":"keyword.other","text":"<%="}
+{"line":54,"kind":"other","text":" f.text_field "}
+{"line":54,"kind":"constant.language","text":":name"}
+{"line":54,"kind":"other","text":", "}
+{"line":54,"kind":"keyword.control","text":"class"}
+{"line":54,"kind":"other","text":": "}
+{"line":54,"kind":"string","text":"\"input\""}
+{"line":54,"kind":"other","text":", placeholder: "}
+{"line":54,"kind":"string","text":"\"New item\""}
+{"line":54,"kind":"other","text":" "}
+{"line":54,"kind":"keyword.other","text":"%>"}
+{"line":55,"kind":"other","text":"          "}
+{"line":55,"kind":"keyword.other","text":"<%="}
+{"line":55,"kind":"other","text":" f.submit "}
+{"line":55,"kind":"string","text":"\"Add\""}
+{"line":55,"kind":"other","text":" "}
+{"line":55,"kind":"keyword.other","text":"%>"}
+{"line":56,"kind":"other","text":"        "}
+{"line":56,"kind":"keyword.other","text":"<%"}
+{"line":56,"kind":"other","text":" "}
+{"line":56,"kind":"keyword.control","text":"end"}
+{"line":56,"kind":"other","text":" "}
+{"line":56,"kind":"keyword.other","text":"%>"}
+{"line":57,"kind":"other","text":"      </"}
+{"line":57,"kind":"constant.language","text":"section"}
+{"line":57,"kind":"other","text":">"}
+{"line":58,"kind":"other","text":"    </"}
+{"line":58,"kind":"constant.language","text":"main"}
+{"line":58,"kind":"other","text":">"}
+{"line":60,"kind":"other","text":"    <"}
+{"line":60,"kind":"constant.language","text":"footer"}
+{"line":60,"kind":"other","text":">"}
+{"line":61,"kind":"other","text":"      <"}
+{"line":61,"kind":"constant.language","text":"small"}
+{"line":61,"kind":"other","text":">"}
+{"line":61,"kind":"constant.numeric","text":"&copy;"}
+{"line":61,"kind":"other","text":" "}
+{"line":61,"kind":"keyword.other","text":"<%="}
+{"line":61,"kind":"other","text":" "}
+{"line":61,"kind":"constant.language","text":"Time"}
+{"line":61,"kind":"other","text":".current.year "}
+{"line":61,"kind":"keyword.other","text":"%>"}
+{"line":61,"kind":"other","text":" Kitchen Sink Inc.</"}
+{"line":61,"kind":"constant.language","text":"small"}
+{"line":61,"kind":"other","text":">"}
+{"line":62,"kind":"other","text":"    </"}
+{"line":62,"kind":"constant.language","text":"footer"}
+{"line":62,"kind":"other","text":">"}
+{"line":63,"kind":"other","text":"  </"}
+{"line":63,"kind":"constant.language","text":"body"}
+{"line":63,"kind":"other","text":">"}
+{"line":64,"kind":"other","text":"</"}
+{"line":64,"kind":"constant.language","text":"html"}
+{"line":64,"kind":"other","text":">"}

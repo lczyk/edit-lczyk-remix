@@ -33,6 +33,7 @@ fn fixture_subdir(lang: Language) -> &'static str {
         Language::Csv => "csv",
         Language::Diff => "diff",
         Language::Dockerfile => "dockerfile",
+        Language::Erb => "erb",
         Language::Fish => "fish",
         Language::GitCommit => "git_commit",
         Language::GitRebase => "git_rebase",
