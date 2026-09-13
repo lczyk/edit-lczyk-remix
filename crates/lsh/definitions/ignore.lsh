@@ -1,5 +1,6 @@
 #[display_name = "Ignore"]
 #[line_comment = "#"]
+#[path = "**/.craftignore"]
 #[path = "**/.git-blame-ignore-revs"]
 #[path = "**/.gitignore"]
 pub fn ignore() {
