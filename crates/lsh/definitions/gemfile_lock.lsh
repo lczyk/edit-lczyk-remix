@@ -1,0 +1,36 @@
+#[display_name = "Bundler Lockfile"]
+#[path = "**/Gemfile.lock"]
+#[path = "**/gems.locked"]
+pub fn gemfile_lock() {
+    if /\s+/ {
+        // Leading whitespace
+    }
+
+    if /(?:GEM|GIT|PATH|PLUGIN SOURCE|PLATFORMS|DEPENDENCIES|RUBY VERSION|BUNDLED WITH|CHECKSUMS)$/ {
+        yield keyword.other;
+        return;
+    }
+
+    if /(?:remote|revision|branch|tag|ref|glob|submodules|specs):/ {
+        yield keyword.other;
+    }
+
+    until /$/ {
+        yield other;
+
+        if /sha256=[0-9a-f]+/ {
+            yield string;
+        } else if /v?\d+(?:[.+-][\w.+-]*)?\>/ {
+            // Requires a separator before any letter, so "1234567" reads as a
+            // version but a digit-led name like "3scale_client" falls through.
+            yield constant.numeric;
+        } else if /[0-9a-f]{7,}\>/ {
+            // Git revision/ref -- a hash, tried only once the numeric shape above misses.
+            yield string;
+        } else if /[^\s(),!~<>=]+/ {
+            // Gem/dependency name, platform, URL, or branch/tag text.
+        }
+
+        yield other;
+    }
+}

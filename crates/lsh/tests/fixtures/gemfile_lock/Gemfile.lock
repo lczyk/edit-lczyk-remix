@@ -1,0 +1,94 @@
+GIT
+  remote: https://github.com/example/example-gem.git
+  revision: 4c9231576282aa427bd8eff6c8290664265cbb51
+  branch: main
+  specs:
+    example-gem (0.4.0)
+      activesupport (>= 6.0)
+
+GIT
+  remote: https://github.com/example/other-gem.git
+  revision: a1b2c3d
+  tag: v2.1.0
+  specs:
+    other-gem (2.1.0)
+
+GIT
+  remote: https://github.com/example/pinned-gem.git
+  revision: deadbee0123456789abcdef0123456789abcdef
+  ref: deadbee
+  submodules: true
+  specs:
+    pinned-gem (0.5.0)
+
+PATH
+  remote: vendor/gems/local-widget
+  glob: "{,*,**/*}.gemspec"
+  specs:
+    local-widget (0.1.0)
+      rake (~> 13.0)
+
+PLUGIN SOURCE
+  remote: https://plugins.example.com
+  specs:
+    example-plugin (0.2.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    2checkout (6.0.1)
+    actioncable (7.1.3.2)
+      actionpack (= 7.1.3.2)
+      activesupport (= 7.1.3.2)
+      nio4r (~> 2.0)
+      websocket-driver (>= 0.6.1)
+    actionpack (7.1.3.2)
+      actionview (= 7.1.3.2)
+      activesupport (= 7.1.3.2)
+      rack (>= 2.2.4)
+    actionpack (7.1.3.2-x86_64-linux)
+      actionview (= 7.1.3.2)
+      activesupport (= 7.1.3.2)
+    concurrent-ruby (1.2.2)
+    datestamp (1234567)
+    json (2.7.1)
+    nio4r (2.7.0)
+    pg (1.5.4)
+    puma (6.4.2)
+    rack (3.0.8)
+    rake (13.1.0)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
+    websocket-driver (0.7.6)
+      websocket-extensions (>= 0.1.0)
+    websocket-extensions (0.1.5)
+
+PLATFORMS
+  arm64-darwin
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  2checkout
+  actioncable (~> 7.1)
+  datestamp
+  example-gem!
+  json (< 3)
+  local-widget!
+  other-gem
+  pg (~> 1.1)
+  puma (>= 5.0, < 7)
+  rake
+
+RUBY VERSION
+   ruby 3.3.8p100
+
+BUNDLED WITH
+   2.5.22
+
+CHECKSUMS
+  actioncable (7.1.3.2) sha256=1a2b3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071
+  actionpack (7.1.3.2) sha256=2b3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829
+  concurrent-ruby (1.2.2) sha256=3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f607182930
+  rack (3.0.8) sha256=4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f60718293041

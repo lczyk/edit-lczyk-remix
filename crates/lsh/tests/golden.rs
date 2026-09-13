@@ -35,6 +35,7 @@ fn fixture_subdir(lang: Language) -> &'static str {
         Language::Dockerfile => "dockerfile",
         Language::Erb => "erb",
         Language::Fish => "fish",
+        Language::GemfileLock => "gemfile_lock",
         Language::GitCommit => "git_commit",
         Language::GitRebase => "git_rebase",
         Language::Gleam => "gleam",

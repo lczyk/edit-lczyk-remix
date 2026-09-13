@@ -1,0 +1,95 @@
+\x1b[94mGIT\x1b[m
+\x1b[94m  remote:\x1b[m https://github.com/example/example-gem.git
+\x1b[94m  revision:\x1b[m \x1b[91m4c9231576282aa427bd8eff6c8290664265cbb51\x1b[m
+\x1b[94m  branch:\x1b[m main
+\x1b[94m  specs:\x1b[m
+    example-gem (\x1b[92m0.4.0\x1b[m)
+      activesupport (>= \x1b[92m6.0\x1b[m)
+
+\x1b[94mGIT\x1b[m
+\x1b[94m  remote:\x1b[m https://github.com/example/other-gem.git
+\x1b[94m  revision:\x1b[m \x1b[91ma1b2c3d\x1b[m
+\x1b[94m  tag:\x1b[m \x1b[92mv2.1.0\x1b[m
+\x1b[94m  specs:\x1b[m
+    other-gem (\x1b[92m2.1.0\x1b[m)
+
+\x1b[94mGIT\x1b[m
+\x1b[94m  remote:\x1b[m https://github.com/example/pinned-gem.git
+\x1b[94m  revision:\x1b[m \x1b[91mdeadbee0123456789abcdef0123456789abcdef\x1b[m
+\x1b[94m  ref:\x1b[m \x1b[91mdeadbee\x1b[m
+\x1b[94m  submodules:\x1b[m true
+\x1b[94m  specs:\x1b[m
+    pinned-gem (\x1b[92m0.5.0\x1b[m)
+
+\x1b[94mPATH\x1b[m
+\x1b[94m  remote:\x1b[m vendor/gems/local-widget
+\x1b[94m  glob:\x1b[m "{,*,**/*}.gemspec"
+\x1b[94m  specs:\x1b[m
+    local-widget (\x1b[92m0.1.0\x1b[m)
+      rake (~> \x1b[92m13.0\x1b[m)
+
+\x1b[94mPLUGIN SOURCE\x1b[m
+\x1b[94m  remote:\x1b[m https://plugins.example.com
+\x1b[94m  specs:\x1b[m
+    example-plugin (\x1b[92m0.2.0\x1b[m)
+
+\x1b[94mGEM\x1b[m
+\x1b[94m  remote:\x1b[m https://rubygems.org/
+\x1b[94m  specs:\x1b[m
+    2checkout (\x1b[92m6.0.1\x1b[m)
+    actioncable (\x1b[92m7.1.3.2\x1b[m)
+      actionpack (= \x1b[92m7.1.3.2\x1b[m)
+      activesupport (= \x1b[92m7.1.3.2\x1b[m)
+      nio4r (~> \x1b[92m2.0\x1b[m)
+      websocket-driver (>= \x1b[92m0.6.1\x1b[m)
+    actionpack (\x1b[92m7.1.3.2\x1b[m)
+      actionview (= \x1b[92m7.1.3.2\x1b[m)
+      activesupport (= \x1b[92m7.1.3.2\x1b[m)
+      rack (>= \x1b[92m2.2.4\x1b[m)
+    actionpack (\x1b[92m7.1.3.2-x86_64-linux\x1b[m)
+      actionview (= \x1b[92m7.1.3.2\x1b[m)
+      activesupport (= \x1b[92m7.1.3.2\x1b[m)
+    concurrent-ruby (\x1b[92m1.2.2\x1b[m)
+    datestamp (\x1b[92m1234567\x1b[m)
+    json (\x1b[92m2.7.1\x1b[m)
+    nio4r (\x1b[92m2.7.0\x1b[m)
+    pg (\x1b[92m1.5.4\x1b[m)
+    puma (\x1b[92m6.4.2\x1b[m)
+    rack (\x1b[92m3.0.8\x1b[m)
+    rake (\x1b[92m13.1.0\x1b[m)
+    tzinfo (\x1b[92m2.0.6\x1b[m)
+      concurrent-ruby (~> \x1b[92m1.0\x1b[m)
+    websocket-driver (\x1b[92m0.7.6\x1b[m)
+      websocket-extensions (>= \x1b[92m0.1.0\x1b[m)
+    websocket-extensions (\x1b[92m0.1.5\x1b[m)
+
+\x1b[94mPLATFORMS\x1b[m
+  arm64-darwin
+  ruby
+  x86_64-linux
+  x86_64-linux-gnu
+
+\x1b[94mDEPENDENCIES\x1b[m
+  2checkout
+  actioncable (~> \x1b[92m7.1\x1b[m)
+  datestamp
+  example-gem!
+  json (< \x1b[92m3\x1b[m)
+  local-widget!
+  other-gem
+  pg (~> \x1b[92m1.1\x1b[m)
+  puma (>= \x1b[92m5.0\x1b[m, < \x1b[92m7\x1b[m)
+  rake
+
+\x1b[94mRUBY VERSION\x1b[m
+   ruby \x1b[92m3.3.8p100\x1b[m
+
+\x1b[94mBUNDLED WITH\x1b[m
+   \x1b[92m2.5.22\x1b[m
+
+\x1b[94mCHECKSUMS\x1b[m
+  actioncable (\x1b[92m7.1.3.2\x1b[m) \x1b[91msha256=1a2b3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071\x1b[m
+  actionpack (\x1b[92m7.1.3.2\x1b[m) \x1b[91msha256=2b3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829\x1b[m
+  concurrent-ruby (\x1b[92m1.2.2\x1b[m) \x1b[91msha256=3c4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f607182930\x1b[m
+  rack (\x1b[92m3.0.8\x1b[m) \x1b[91msha256=4d5e6f7089a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f60718293041\x1b[m
+
