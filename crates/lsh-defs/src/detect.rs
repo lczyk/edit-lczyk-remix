@@ -561,6 +561,17 @@ mod tests {
     }
 
     #[test]
+    fn rails_project_files_resolve_to_their_own_languages() {
+        // `.html.erb` must not read as html, nor `Gemfile.lock` as a Gemfile.
+        assert_eq!(resolved(Some("app/views/home/index.html.erb"), b""), "erb");
+        assert_eq!(resolved(Some("Gemfile.lock"), b""), "gemfile-lock");
+        assert_eq!(resolved(Some("Gemfile"), b""), "ruby");
+        assert_eq!(resolved(Some("app/assets/stylesheets/application.css"), b""), "css");
+        assert_eq!(resolved(Some(".craftignore"), b""), "ignore");
+        assert_eq!(resolved(Some("bin/rails"), b"#!/usr/bin/env ruby\n"), "ruby");
+    }
+
+    #[test]
     fn a_user_association_wins_over_the_bundled_one() {
         let python = find_language("python").unwrap();
         let user = [("**/*.rs", python)];
