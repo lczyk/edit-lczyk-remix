@@ -8,7 +8,7 @@ help:
 sync-version:  ## Sync crate Cargo.toml versions from VERSION (source of truth)
 	@v=$$(awk '/^[[:space:]]*#/ {next} /^[[:space:]]*$$/ {next} {gsub(/[[:space:]]/,""); print; exit}' VERSION); \
 	if [ -z "$$v" ]; then echo "VERSION has no version line" >&2; exit 1; fi; \
-	for crate in edit; do \
+	for crate in edit lsh-defs; do \
 	awk -v v="$$v" ' \
 	  /^version = ".*"[[:space:]]*#[[:space:]]*source:[[:space:]]*\/VERSION/ { \
 	    print "version = \"" v "\"  # source: /VERSION (synced by `make sync-version`; do not edit by hand)"; next \
