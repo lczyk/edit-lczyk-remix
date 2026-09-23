@@ -18,7 +18,7 @@ stdout is a terminal:
 | stdout | invocation | renderer |
 |---|---|---|
 | not a tty | anything | ansi stream -- highlight, write through. Pipes, redirects and the pager all land here. |
-| tty | single file, no `--plain`, no `--line-range` | alt-screen snapshot viewer |
+| tty | single file (not a directory), no `--plain`, no `--line-range` | alt-screen snapshot viewer |
 | tty | `-f` / `--follow` | alt-screen follow viewer over a growing file |
 
 `--plain` (`-p`) drops highlighting, decorations and paging -- it makes `eat`
@@ -114,6 +114,41 @@ Both tty viewers share one keymap. vi aliases mirror `less`.
 The primary modifier is `Cmd` on macOS and `Ctrl` elsewhere, same as the
 editor -- see [Terminal Keyboard](./terminal-keyboard.md) if a chord doesn't
 reach the program.
+
+## Directories
+
+A directory argument is listed where a file's contents would go -- always via
+the ansi stream, so on a tty a lone `eat DIR` goes to the pager rather than
+the viewer:
+
+```
+   - -M src/
+   - -I target/
+   3 -- .gitignore
+1.2k -M Cargo.toml
+ 340 -N new.rs
+   - -- link -> elsewhere
+```
+
+- Directories first, then files, each sorted case-insensitively. Dotfiles
+  are listed; `.` and `..` are not. A symlink to a directory groups with the
+  directories and shows its target.
+- Size in decimal units, like `eza`, at most four characters wide.
+  Directories and symlinks show `-`.
+- The git column is `eza --git`'s: staged then unstaged, `N` new, `M`
+  modified, `D` deleted, `R` renamed, `T` type change, `U` conflicted, `I`
+  ignored, `-` unchanged. Every unmerged pair (`AA`, `DD`, `UU`, ...) shows
+  as `UU`. A directory shows the most notable status inside it
+  (ignored files inside it don't count). Outside a repo, or with no `git` on
+  `$PATH`, the column is left out.
+- File names are coloured by the language their name matches -- globs only,
+  nothing is opened -- hashed onto the six ansi-16 hues, so a language keeps
+  its colour. Names that match no language stay uncoloured.
+- Control characters in names are escaped as rust escapes (`\u{1b}`), like
+  `eza`, so a filename cannot send escape sequences to the terminal.
+
+`--plain` lists names only, with a trailing `/` on directories. `-n` and
+`--line-range` apply to the rows as they would to lines.
 
 ## Multi-file output
 
