@@ -60,8 +60,10 @@ pub fn run_snapshot(
         TextBuffer::new_rc(false).map_err(|e| io::Error::other(format!("text buffer: {e:?}")))?;
     {
         let mut b = buf.borrow_mut();
-        let mut f = std::fs::File::open(&path)?;
-        b.read_file(&mut f).map_err(|e| io::Error::other(format!("read: {e:?}")))?;
+        let with_path = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+        let mut f =
+            std::fs::File::open(&path).map_err(|e| io::Error::new(e.kind(), with_path(&e)))?;
+        b.read_file(&mut f).map_err(|e| io::Error::other(with_path(&e)))?;
         b.set_language(lang);
         b.set_margin_enabled(show_numbers);
         b.set_word_wrap(wrap);
@@ -224,8 +226,10 @@ pub fn run_follow_mount(
         TextBuffer::new_rc(false).map_err(|e| io::Error::other(format!("text buffer: {e:?}")))?;
     {
         let mut b = buf.borrow_mut();
-        let mut f = std::fs::File::open(&path)?;
-        b.read_file(&mut f).map_err(|e| io::Error::other(format!("read: {e:?}")))?;
+        let with_path = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+        let mut f =
+            std::fs::File::open(&path).map_err(|e| io::Error::new(e.kind(), with_path(&e)))?;
+        b.read_file(&mut f).map_err(|e| io::Error::other(with_path(&e)))?;
         b.set_language(lang);
         b.set_margin_enabled(show_numbers);
         b.set_word_wrap(wrap);

@@ -169,6 +169,10 @@ pub(crate) fn parse_args() -> apperr::Result<Option<std::path::PathBuf>> {
             // existing files with weird names (e.g. left behind by a buggy
             // tool). Disable with `--quirks=-safe-filenames`.
             let (file_path, _) = document::parse_filename_goto(&p);
+            if file_path.is_dir() {
+                let msg = format!("edit: {}: Is a directory", file_path.display());
+                return Err(std::io::Error::new(std::io::ErrorKind::IsADirectory, msg).into());
+            }
             let name = file_path.file_name().and_then(|s| s.to_str()).unwrap_or("");
             if quirks.contains("safe-filenames") && !is_safe_filename(name) {
                 sys::write_stdout(&format!(

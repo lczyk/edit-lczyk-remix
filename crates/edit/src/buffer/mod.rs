@@ -29,7 +29,6 @@ mod undo;
 use std::borrow::Cow;
 use std::cell::UnsafeCell;
 use std::collections::VecDeque;
-#[cfg(feature = "sanity")]
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read as _, Write as _};
@@ -138,6 +137,15 @@ impl From<io::Error> for IoError {
 impl From<icu::Error> for IoError {
     fn from(err: icu::Error) -> Self {
         Self::Icu(err)
+    }
+}
+
+impl fmt::Display for IoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(err) => err.fmt(f),
+            Self::Icu(err) => err.fmt(f),
+        }
     }
 }
 
