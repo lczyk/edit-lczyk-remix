@@ -68,7 +68,7 @@ pub(crate) struct Cli {
     #[argh(switch)]
     pub(crate) version: bool,
 
-    /// files to read (use - for stdin)
+    /// files to read (use - for stdin); a directory is listed
     #[argh(positional)]
     pub(crate) files: Vec<String>,
 }

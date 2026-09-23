@@ -8,6 +8,9 @@
 //! - **tty snapshot** -- a read-only alt-screen viewer, in [`views`].
 //! - **tty follow** -- the same viewer over a growing file.
 //!
+//! A directory argument goes down the non-tty path whatever stdout is,
+//! as a [`listing`] in place of the file body.
+//!
 //! The two viewers share their keymap and terminal setup via [`viewer`];
 //! everything shares language detection via [`detect`].
 
@@ -15,6 +18,7 @@ pub mod cli;
 pub mod detect;
 pub mod follow;
 pub mod gutter_view;
+pub mod listing;
 pub mod stream;
 pub mod theme;
 pub mod viewer;
@@ -128,7 +132,8 @@ pub fn main() -> ExitCode {
         && !cli.plain
         && line_range.is_none()
         && cli.files.len() == 1
-        && cli.files[0] != "-";
+        && cli.files[0] != "-"
+        && !std::path::Path::new(&cli.files[0]).is_dir();
 
     if use_snapshot_tui {
         let path = PathBuf::from(&cli.files[0]);

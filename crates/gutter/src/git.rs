@@ -1,5 +1,6 @@
-//! Subprocess wrapper around `git` for the gutter-diff feature. No
-//! libgit2; missing binary degrades to a graceful noop.
+//! Subprocess wrapper around `git`: baselines for the gutter diff, and
+//! per-path status for eat's directory listing. No libgit2; missing
+//! binary degrades to a graceful noop.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -62,6 +63,53 @@ fn show_blob(repo_root: &Path, spec: &str) -> io::Result<Vec<u8>> {
     Ok(out.stdout)
 }
 
+/// `git status --porcelain` for everything under `dir`, ignored paths
+/// included, as `(XY, path relative to dir)`. An empty path means `dir`
+/// itself carries the status: it sits in a wholly untracked or ignored
+/// tree, which git reports as the tree's root alone.
+pub fn dir_status(dir: &Path) -> io::Result<Vec<([u8; 2], String)>> {
+    let prefix = git_stdout(dir, &["rev-parse", "--show-prefix"])?;
+    let prefix = str::from_utf8(&prefix)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "non-utf8 prefix"))?
+        .trim_end_matches('\n')
+        .to_string();
+    let out = git_stdout(dir, &["status", "--porcelain=v1", "-z", "--ignored", "--", "."])?;
+    Ok(parse_porcelain_z(&out, &prefix))
+}
+
+fn git_stdout(dir: &Path, args: &[&str]) -> io::Result<Vec<u8>> {
+    let out = Command::new("git").arg("-C").arg(dir).args(args).stderr(Stdio::null()).output()?;
+    if !out.status.success() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "not a git repo"));
+    }
+    Ok(out.stdout)
+}
+
+/// Porcelain paths are relative to the toplevel whatever the cwd, so
+/// `prefix` (the dir's own path from the toplevel) is stripped off.
+fn parse_porcelain_z(out: &[u8], prefix: &str) -> Vec<([u8; 2], String)> {
+    let mut entries = Vec::new();
+    let mut records = out.split(|&b| b == 0);
+    while let Some(rec) = records.next() {
+        if rec.len() < 4 {
+            continue;
+        }
+        let xy = [rec[0], rec[1]];
+        // A rename or copy is followed by a second record holding the
+        // source path.
+        if matches!(xy[0], b'R' | b'C') {
+            records.next();
+        }
+        let path = String::from_utf8_lossy(&rec[3..]);
+        if let Some(rel) = path.strip_prefix(prefix) {
+            entries.push((xy, rel.to_string()));
+        } else if path.ends_with('/') && prefix.starts_with(&*path) {
+            entries.push((xy, String::new()));
+        }
+    }
+    entries
+}
+
 fn canonicalise(p: &Path) -> io::Result<PathBuf> {
     // canonicalize resolves /var -> /private/var on macos so the strip_prefix
     // in locate() lines up.
@@ -102,6 +150,35 @@ mod tests {
         // here is what suppresses the margin rather than crashing the editor.
         let state = crate::gutter_diff::BaselineState::load(&missing_path());
         assert!(state.bytes.is_none());
+    }
+
+    #[test]
+    fn porcelain_paths_come_back_relative_to_the_dir() {
+        let out = b" M sub/a.rs\0?? sub/new/\0R  sub/b.rs\0sub/old.rs\0!! other/x\0";
+        let got = parse_porcelain_z(out, "sub/");
+        assert_eq!(
+            got,
+            vec![
+                (*b" M", "a.rs".to_string()),
+                (*b"??", "new/".to_string()),
+                (*b"R ", "b.rs".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_wholly_ignored_dir_reports_itself_with_an_empty_path() {
+        // `git status -- .` from inside an ignored dir names the dir, not its
+        // children.
+        let got = parse_porcelain_z(b"!! target/\0", "target/");
+        assert_eq!(got, vec![(*b"!!", String::new())]);
+        let got = parse_porcelain_z(b"!! target/\0", "target/debug/deps/");
+        assert_eq!(got, vec![(*b"!!", String::new())]);
+    }
+
+    #[test]
+    fn a_dir_outside_any_repo_has_no_status() {
+        assert!(dir_status(&missing_path()).is_err());
     }
 
     #[test]

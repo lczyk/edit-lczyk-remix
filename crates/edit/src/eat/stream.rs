@@ -19,7 +19,7 @@ use super::cli::{
     ColorMode, LineRange, PagingMode, WrapMode, print_short_help, prog_name, resolve_use_color,
 };
 use super::detect::head_bytes;
-use super::{gutter_view, theme};
+use super::{gutter_view, listing, theme};
 use lsh_defs::detect::{NO_USER_ASSOCIATIONS, find_language, resolve};
 
 /// resolve the pager binary path.
@@ -140,13 +140,7 @@ fn print_highlighted(
     use_color: bool,
     gutter: Option<&gutter_view::Gutter>,
 ) -> io::Result<()> {
-    if let Some(hdr) = header {
-        if use_color {
-            writeln!(writer, "\x1b[1m--- {hdr} ---\x1b[m")?;
-        } else {
-            writeln!(writer, "--- {hdr} ---")?;
-        }
-    }
+    write_header(writer, header, use_color)?;
 
     for (i, line) in lines.iter().enumerate() {
         let g = if show_numbers { gutter } else { None };
@@ -154,6 +148,46 @@ fn print_highlighted(
     }
 
     Ok(())
+}
+
+/// write a directory listing's rows, which arrive already coloured, with
+/// the same header and line-number prefix a file would get.
+fn write_listing(
+    writer: &mut dyn Write,
+    rows: &[String],
+    first_line: usize,
+    number_width: Option<usize>,
+    header: Option<&str>,
+    use_color: bool,
+) -> io::Result<()> {
+    write_header(writer, header, use_color)?;
+    for (i, row) in rows.iter().enumerate() {
+        if let Some(width) = number_width {
+            gutter_view::write_prefix(writer, first_line + i, width, GutterMark::None, use_color)?;
+        }
+        writeln!(writer, "{row}")?;
+    }
+    Ok(())
+}
+
+fn write_header(writer: &mut dyn Write, header: Option<&str>, use_color: bool) -> io::Result<()> {
+    match header {
+        Some(hdr) if use_color => writeln!(writer, "\x1b[1m--- {hdr} ---\x1b[m"),
+        Some(hdr) => writeln!(writer, "--- {hdr} ---"),
+        None => Ok(()),
+    }
+}
+
+/// the slice of `all` a line range selects, plus the 1-based line number
+/// of its first row.
+fn apply_line_range<'a>(all: &'a [String], range: Option<&LineRange>) -> (&'a [String], usize) {
+    let first_line = range.map_or(1, |r| r.start.unwrap_or(1));
+    let Some(range) = range else {
+        return (all, first_line);
+    };
+    let start = first_line.saturating_sub(1).min(all.len());
+    let end = range.end.unwrap_or(all.len()).clamp(start, all.len());
+    (&all[start..end], first_line)
 }
 
 /// spawn the pager (if any) and return its stdin + child handle.
@@ -286,6 +320,31 @@ pub(crate) fn run(
         if sink_closed {
             break;
         }
+        if let EatInput::File(path) = input
+            && path.is_dir()
+        {
+            let all = match listing::render(path, plain, use_color && !plain) {
+                Ok(rows) => rows,
+                Err(e) => {
+                    eprintln!("{}: {}: {e}", prog_name(), path.display());
+                    has_error = true;
+                    continue;
+                }
+            };
+            let (rows, first_line) = apply_line_range(&all, line_range.as_ref());
+            let label = path.display().to_string();
+            let header = (!plain && stdout_is_tty && inputs.len() > 1).then_some(label.as_str());
+            let number_width = (show_numbers && !plain).then(|| all.len().to_string().len());
+            match write_listing(sink.as_mut(), rows, first_line, number_width, header, use_color) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => sink_closed = true,
+                Err(e) => {
+                    eprintln!("{}: {e}", prog_name());
+                    has_error = true;
+                }
+            }
+            continue;
+        }
         let (lines, path_for_detection, header_label) = match input {
             EatInput::File(path) => match read_file(path) {
                 Ok(lines) => {
@@ -318,16 +377,7 @@ pub(crate) fn run(
         // apply line range: `shown` is the slice, `all` stays around so the
         // gutter's marks are indexed by the file's own line numbers.
         let all = lines;
-        let first_line = line_range.as_ref().map_or(1, |r| r.start.unwrap_or(1));
-        let shown: &[String] = match line_range {
-            Some(ref range) => {
-                let start = first_line.saturating_sub(1).min(all.len());
-                let end = range.end.unwrap_or(all.len()).clamp(start, all.len());
-                &all[start..end]
-            }
-            None => &all,
-        };
-        let lines = shown;
+        let (lines, first_line) = apply_line_range(&all, line_range.as_ref());
 
         let lang = lang_override.unwrap_or_else(|| {
             resolve(path_for_detection, NO_USER_ASSOCIATIONS, || head_bytes(lines))
