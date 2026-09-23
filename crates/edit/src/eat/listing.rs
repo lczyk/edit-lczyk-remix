@@ -4,7 +4,10 @@
 //! and dotfiles included. File names are coloured by the language their
 //! name resolves to (globs only; no entry is opened to sniff it), hashed
 //! onto the six ansi-16 hues so a language keeps its colour across runs.
+//! Control characters in names are escaped, so a hostile filename cannot
+//! drive the terminal.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
@@ -44,7 +47,10 @@ pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec
     if plain {
         return Ok(entries
             .iter()
-            .map(|e| if e.is_real_dir() { format!("{}/", e.name) } else { e.name.clone() })
+            .map(|e| {
+                let name = escape_controls(&e.name);
+                if e.is_real_dir() { format!("{name}/") } else { name.into_owned() }
+            })
             .collect());
     }
 
@@ -58,7 +64,7 @@ pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec
         .enumerate()
         .map(|(i, e)| {
             let mut row = String::new();
-            if e.is_real_dir() {
+            if e.is_dir || e.link_target.is_some() {
                 push_painted(&mut row, "   -", ANSI_DIM, use_color);
             } else {
                 row.push_str(&format!("{:>4}", human_size(e.size)));
@@ -80,23 +86,32 @@ pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec
 fn read_entries(dir: &Path) -> io::Result<Vec<Entry>> {
     let mut entries = Vec::new();
     for dirent in fs::read_dir(dir)? {
-        let dirent = dirent?;
-        let path = dirent.path();
-        let meta = fs::symlink_metadata(&path)?;
-        let link_target = meta
-            .file_type()
-            .is_symlink()
-            .then(|| fs::read_link(&path).map(|t| t.to_string_lossy().into_owned()))
-            .transpose()?;
-        entries.push(Entry {
-            name: dirent.file_name().to_string_lossy().into_owned(),
-            // Follows symlinks, so a link to a directory groups with them.
-            is_dir: path.is_dir(),
-            link_target,
-            size: meta.len(),
-        });
+        match read_entry(dirent) {
+            Ok(entry) => entries.push(entry),
+            // Removed between the readdir and the stat; it is simply gone.
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
     }
     Ok(entries)
+}
+
+fn read_entry(dirent: io::Result<fs::DirEntry>) -> io::Result<Entry> {
+    let dirent = dirent?;
+    let path = dirent.path();
+    let meta = fs::symlink_metadata(&path)?;
+    let link_target = meta
+        .file_type()
+        .is_symlink()
+        .then(|| fs::read_link(&path).map(|t| t.to_string_lossy().into_owned()))
+        .transpose()?;
+    Ok(Entry {
+        name: dirent.file_name().to_string_lossy().into_owned(),
+        // Follows symlinks, so a link to a directory groups with them.
+        is_dir: path.is_dir(),
+        link_target,
+        size: meta.len(),
+    })
 }
 
 fn sort_entries(entries: &mut [Entry]) {
@@ -109,7 +124,8 @@ fn sort_entries(entries: &mut [Entry]) {
 }
 
 fn push_name(row: &mut String, dir: &Path, e: &Entry, use_color: bool) {
-    let shown = if e.is_real_dir() { format!("{}/", e.name) } else { e.name.clone() };
+    let name = escape_controls(&e.name);
+    let shown = if e.is_real_dir() { format!("{name}/") } else { name.into_owned() };
     let color = if e.link_target.is_some() {
         ANSI_SYMLINK
     } else if e.is_dir {
@@ -120,8 +136,24 @@ fn push_name(row: &mut String, dir: &Path, e: &Entry, use_color: bool) {
     push_painted(row, &shown, color, use_color);
     if let Some(target) = &e.link_target {
         row.push_str(" -> ");
-        row.push_str(target);
+        row.push_str(&escape_controls(target));
     }
+}
+
+/// Control characters as rust escapes (`\u{1b}`, `\n`), like eza.
+fn escape_controls(s: &str) -> Cow<'_, str> {
+    if !s.chars().any(char::is_control) {
+        return Cow::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len() + 8);
+    for c in s.chars() {
+        if c.is_control() {
+            out.extend(c.escape_debug());
+        } else {
+            out.push(c);
+        }
+    }
+    Cow::Owned(out)
 }
 
 fn push_painted(row: &mut String, text: &str, color: &str, use_color: bool) {
@@ -156,22 +188,26 @@ fn git_color(c: char) -> &'static str {
     }
 }
 
-/// Decimal units, like eza: `340`, `1.2k`, `12k`, `3.4M`.
+/// Decimal units, like eza: `340`, `1.2k`, `12k`, `3.4M`. Never wider
+/// than four characters, so the column stays aligned.
 fn human_size(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["k", "M", "G", "T", "P"];
+    const UNITS: [&str; 6] = ["k", "M", "G", "T", "P", "E"];
     if bytes < 1000 {
         return bytes.to_string();
     }
     let mut value = bytes as f64;
-    let mut unit = "";
-    for u in UNITS {
+    for unit in UNITS {
         value /= 1000.0;
-        unit = u;
-        if value < 1000.0 {
-            break;
+        // The cutoffs sit where rounding would carry into another digit:
+        // 9.96 prints as `10`, and 999.5 moves up a unit rather than `1000`.
+        if value < 9.95 {
+            return format!("{value:.1}{unit}");
+        }
+        if value < 999.5 {
+            return format!("{value:.0}{unit}");
         }
     }
-    if value < 10.0 { format!("{value:.1}{unit}") } else { format!("{value:.0}{unit}") }
+    unreachable!("u64 tops out at 18E")
 }
 
 /// The two-column status shown for each of `names`, eza-style: staged,
@@ -202,6 +238,8 @@ fn display_status(xy: [u8; 2]) -> [char; 2] {
     match &xy {
         b"??" => ['-', 'N'],
         b"!!" => ['-', 'I'],
+        // The unmerged pairs; `AA` and `DD` carry no `U` of their own.
+        b"DD" | b"AU" | b"UD" | b"UA" | b"DU" | b"AA" | b"UU" => ['U', 'U'],
         _ => xy.map(|c| match c {
             b' ' => '-',
             b'A' | b'C' => 'N',
@@ -270,6 +308,9 @@ mod tests {
         assert!(rows[1].ends_with("to-dir -> real"), "{rows:?}");
         assert!(rows[2].ends_with("f.rs"), "{rows:?}");
         assert!(rows[3].ends_with("to-file -> f.rs"), "{rows:?}");
+        // A link's size is its own, not its target's, so neither shows one.
+        assert!(rows[1].starts_with("   - "), "{rows:?}");
+        assert!(rows[3].starts_with("   - "), "{rows:?}");
         assert_eq!(rows.len(), 4);
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -302,7 +343,47 @@ mod tests {
         assert_eq!(human_size(1234), "1.2k");
         assert_eq!(human_size(12_345), "12k");
         assert_eq!(human_size(3_400_000), "3.4M");
-        assert_eq!(human_size(999_999_999), "1000M");
+        assert_eq!(human_size(9_949), "9.9k");
+        assert_eq!(human_size(9_960), "10k");
+        assert_eq!(human_size(999_499), "999k");
+        assert_eq!(human_size(999_500), "1.0M");
+        assert_eq!(human_size(999_999_999), "1.0G");
+        assert_eq!(human_size(u64::MAX), "18E");
+    }
+
+    #[test]
+    fn a_size_never_outgrows_its_column() {
+        let mut n = 1u64;
+        while n < u64::MAX / 3 {
+            for probe in [n - 1, n, n + n / 2, n * 3 - 1] {
+                assert!(human_size(probe).len() <= 4, "{probe} -> {}", human_size(probe));
+            }
+            n *= 10;
+        }
+    }
+
+    #[test]
+    fn control_characters_in_names_are_escaped() {
+        assert_eq!(escape_controls("plain.rs"), "plain.rs");
+        assert_eq!(escape_controls("a\x1b[31mb"), "a\\u{1b}[31mb");
+        assert_eq!(escape_controls("two\nlines"), "two\\nlines");
+        let dir = scratch_dir("controls");
+        fs::write(dir.join("evil\x1b]0;title\x07.txt"), "").unwrap();
+        for plain in [true, false] {
+            let rows = render(&dir, plain, true).unwrap();
+            assert!(rows[0].contains("evil\\u{1b}]0;title\\u{7}.txt"), "{rows:?}");
+            assert!(!rows[0].contains('\x07'), "{rows:?}");
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn every_unmerged_pair_shows_as_a_conflict() {
+        for xy in [b"DD", b"AU", b"UD", b"UA", b"DU", b"AA", b"UU"] {
+            assert_eq!(display_status(*xy), ['U', 'U'], "{}", String::from_utf8_lossy(xy));
+        }
+        // A plain staged add is not a conflict.
+        assert_eq!(display_status(*b"A "), ['N', '-']);
     }
 
     #[test]

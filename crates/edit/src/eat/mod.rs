@@ -61,6 +61,10 @@ fn run_follow_cli(cli: &Cli, has_line_range: bool) -> ExitCode {
     }
 
     let path = PathBuf::from(&cli.files[0]);
+    if path.is_dir() {
+        eprintln!("{}: {}: Is a directory", prog_name(), path.display());
+        return ExitCode::from(1);
+    }
 
     let lang = match resolve_language(&path, cli.language.as_deref()) {
         Ok(lang) => lang,

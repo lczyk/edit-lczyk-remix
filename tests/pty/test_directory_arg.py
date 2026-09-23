@@ -40,6 +40,17 @@ def edit_refuses_the_current_directory():
                f"expected a cat-style message, got: {out!r}")
 
 
+@test
+def edit_refuses_a_directory_whose_name_looks_like_a_goto():
+    # `x:5` would otherwise parse as `x` at line 5.
+    with tempfile.TemporaryDirectory() as tmp:
+        os.mkdir(os.path.join(tmp, "dir:5"))
+        rc, out = _run_cli(["dir:5"], cwd=tmp)
+        expect(rc != 0, f"expected a failing exit code, got {rc}")
+        expect(b"edit: dir:5: Is a directory" in out,
+               f"expected a cat-style message, got: {out!r}")
+
+
 def _eat_fixture(tmp):
     os.mkdir(os.path.join(tmp, "sub"))
     with open(os.path.join(tmp, "main.rs"), "w") as f:
@@ -81,6 +92,15 @@ def eat_lists_a_directory_among_files():
         expect(out == b"hello\nhello\n", f"unexpected output: {out!r}")
         rc, out = _run_cli(["--eat", "-p", hello, tmp])
         expect(out.startswith(b"hello\nsub/\n"), f"unexpected output: {out!r}")
+
+
+@test
+def eat_follow_refuses_a_directory():
+    with tempfile.TemporaryDirectory() as tmp:
+        rc, out = _run_cli(["--eat", "-f", tmp])
+        expect(rc == 1, f"expected exit 1, got {rc}: {out!r}")
+        expect(f"{tmp}: Is a directory".encode() in out,
+               f"expected the path in the message, got: {out!r}")
 
 
 @test
