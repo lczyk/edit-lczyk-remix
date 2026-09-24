@@ -80,6 +80,17 @@ def eat_plain_lists_names_only():
 
 
 @test
+def eat_collapses_a_chain_of_sole_subdirectories():
+    with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, "foo", "bar", "baz"))
+        os.makedirs(os.path.join(tmp, "two", "a"))
+        os.makedirs(os.path.join(tmp, "two", "b"))
+        rc, out = _run_cli(["--eat", "-p", tmp])
+        expect(rc == 0, f"expected success, got {rc}: {out!r}")
+        expect(out == b"foo/bar/baz/\ntwo/\n", f"unexpected listing: {out!r}")
+
+
+@test
 def eat_lists_a_directory_among_files():
     with tempfile.TemporaryDirectory() as tmp:
         _eat_fixture(tmp)

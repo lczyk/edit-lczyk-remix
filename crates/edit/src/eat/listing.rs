@@ -5,10 +5,12 @@
 //! name resolves to (globs only; no entry is opened to sniff it), hashed
 //! onto the six ansi-16 hues so a language keeps its colour across runs.
 //! Control characters in names are escaped, so a hostile filename cannot
-//! drive the terminal.
+//! drive the terminal. A directory whose only entry is another directory
+//! is shown with it, `foo/bar/`, down to the first that isn't.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -29,12 +31,36 @@ struct Entry {
     /// `Some` for a symlink, holding where it points.
     link_target: Option<String>,
     size: u64,
+    /// The sole-subdirectory chain below a real directory, shown with it.
+    chain: Vec<String>,
 }
 
 impl Entry {
     /// A real directory, not a link to one: gets the trailing `/`.
     fn is_real_dir(&self) -> bool {
         self.is_dir && self.link_target.is_none()
+    }
+
+    /// The entry's path below the listed dir, `/`-joined, unescaped.
+    fn rel_path(&self) -> String {
+        let mut path = self.name.clone();
+        for seg in &self.chain {
+            path.push('/');
+            path.push_str(seg);
+        }
+        path
+    }
+
+    fn shown_name(&self) -> String {
+        let mut shown = escape_controls(&self.name).into_owned();
+        for seg in &self.chain {
+            shown.push('/');
+            shown.push_str(&escape_controls(seg));
+        }
+        if self.is_real_dir() {
+            shown.push('/');
+        }
+        shown
     }
 }
 
@@ -45,18 +71,12 @@ pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec
     sort_entries(&mut entries);
 
     if plain {
-        return Ok(entries
-            .iter()
-            .map(|e| {
-                let name = escape_controls(&e.name);
-                if e.is_real_dir() { format!("{name}/") } else { name.into_owned() }
-            })
-            .collect());
+        return Ok(entries.iter().map(Entry::shown_name).collect());
     }
 
     let git = gutter::git::dir_status(dir).ok().map(|status| {
-        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-        git_columns(&names, &status)
+        let paths: Vec<String> = entries.iter().map(Entry::rel_path).collect();
+        git_columns(&paths, &status)
     });
 
     let rows = entries
@@ -105,13 +125,37 @@ fn read_entry(dirent: io::Result<fs::DirEntry>) -> io::Result<Entry> {
         .is_symlink()
         .then(|| fs::read_link(&path).map(|t| t.to_string_lossy().into_owned()))
         .transpose()?;
+    let chain = if meta.is_dir() { sole_subdir_chain(&path) } else { Vec::new() };
     Ok(Entry {
         name: dirent.file_name().to_string_lossy().into_owned(),
         // Follows symlinks, so a link to a directory groups with them.
         is_dir: path.is_dir(),
         link_target,
         size: meta.len(),
+        chain,
     })
+}
+
+/// The names below `dir` for as long as each directory holds nothing but
+/// one real subdirectory. Links are never followed, so the walk can't
+/// loop; an unreadable level just ends it.
+fn sole_subdir_chain(dir: &Path) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut path = dir.to_path_buf();
+    while let Some(name) = sole_subdir(&path) {
+        path.push(&name);
+        chain.push(name.to_string_lossy().into_owned());
+    }
+    chain
+}
+
+fn sole_subdir(dir: &Path) -> Option<OsString> {
+    let mut it = fs::read_dir(dir).ok()?;
+    let only = it.next()?.ok()?;
+    if it.next().is_some() || !only.file_type().ok()?.is_dir() {
+        return None;
+    }
+    Some(only.file_name())
 }
 
 fn sort_entries(entries: &mut [Entry]) {
@@ -124,8 +168,7 @@ fn sort_entries(entries: &mut [Entry]) {
 }
 
 fn push_name(row: &mut String, dir: &Path, e: &Entry, use_color: bool) {
-    let name = escape_controls(&e.name);
-    let shown = if e.is_real_dir() { format!("{name}/") } else { name.into_owned() };
+    let shown = e.shown_name();
     let color = if e.link_target.is_some() {
         ANSI_SYMLINK
     } else if e.is_dir {
@@ -210,28 +253,35 @@ fn human_size(bytes: u64) -> String {
     unreachable!("u64 tops out at 18E")
 }
 
-/// The two-column status shown for each of `names`, eza-style: staged,
-/// then unstaged, `-` for unchanged. A directory shows the most notable
-/// status among its contents; ignored files deeper down don't count, so
-/// only a directory that is itself ignored shows as one.
-fn git_columns(names: &[&str], status: &[([u8; 2], String)]) -> Vec<[char; 2]> {
-    let index: HashMap<&str, usize> = names.iter().enumerate().map(|(i, n)| (*n, i)).collect();
-    let mut cols = vec![['-', '-']; names.len()];
+/// The two-column status shown for each of `paths` (an entry plus its
+/// collapsed chain, `/`-joined), eza-style: staged, then unstaged, `-` for
+/// unchanged. A directory shows the most notable status among its
+/// contents; ignored files deeper down don't count, so only a row whose
+/// path is itself ignored, or sits in an ignored directory, shows as one.
+fn git_columns(paths: &[String], status: &[([u8; 2], String)]) -> Vec<[char; 2]> {
+    fn head(p: &str) -> &str {
+        p.split_once('/').map_or(p, |(h, _)| h)
+    }
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (head(p), i)).collect();
+    let mut cols = vec![['-', '-']; paths.len()];
     for (xy, rel) in status {
         let shown = display_status(*xy);
-        let (head, deeper) = match rel.split_once('/') {
-            Some((head, rest)) => (head, !rest.is_empty()),
-            None => (rel.as_str(), false),
-        };
         if rel.is_empty() {
             cols.iter_mut().for_each(|c| merge(c, shown));
-        } else if let Some(&i) = index.get(head)
-            && !(deeper && xy == b"!!")
-        {
-            merge(&mut cols[i], shown);
+            continue;
         }
+        let Some(&i) = index.get(head(rel)) else { continue };
+        if xy == b"!!" && !covers(rel.trim_end_matches('/'), &paths[i]) {
+            continue;
+        }
+        merge(&mut cols[i], shown);
     }
     cols
+}
+
+/// Whether `path` is `ancestor` or lies below it.
+fn covers(ancestor: &str, path: &str) -> bool {
+    path.strip_prefix(ancestor).is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
 }
 
 fn display_status(xy: [u8; 2]) -> [char; 2] {
@@ -394,7 +444,7 @@ mod tests {
             (*b"??", "c.rs".to_string()),
             (*b"!!", "target/".to_string()),
         ];
-        let cols = git_columns(&["a.rs", "b.rs", "c.rs", "target", "clean.rs"], &st);
+        let cols = git_columns(&paths(&["a.rs", "b.rs", "c.rs", "target", "clean.rs"]), &st);
         assert_eq!(cols, [['-', 'M'], ['N', '-'], ['-', 'N'], ['-', 'I'], ['-', '-']]);
     }
 
@@ -406,7 +456,7 @@ mod tests {
             (*b"!!", "src/debug.log".to_string()),
             (*b"!!", "docs/out.html".to_string()),
         ];
-        let cols = git_columns(&["src", "docs"], &st);
+        let cols = git_columns(&paths(&["src", "docs"]), &st);
         // An ignored file inside a directory doesn't make the directory ignored.
         assert_eq!(cols, [['-', 'M'], ['-', '-']]);
     }
@@ -414,6 +464,98 @@ mod tests {
     #[test]
     fn a_wholly_ignored_dir_marks_every_entry() {
         let st = vec![(*b"!!", String::new())];
-        assert_eq!(git_columns(&["a", "b"], &st), [['-', 'I'], ['-', 'I']]);
+        assert_eq!(git_columns(&paths(&["a", "b"]), &st), [['-', 'I'], ['-', 'I']]);
+    }
+
+    fn paths(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    #[test]
+    fn a_chain_of_sole_subdirectories_collapses_into_one_row() {
+        let dir = scratch_dir("chain");
+        fs::create_dir_all(dir.join("foo/bar/baz")).unwrap();
+        fs::write(dir.join("foo/bar/baz/x.rs"), "").unwrap();
+        fs::write(dir.join("foo/bar/baz/y.rs"), "").unwrap();
+        fs::create_dir_all(dir.join("a/b/c/d/e")).unwrap();
+        fs::write(dir.join("f.txt"), "").unwrap();
+        assert_eq!(render(&dir, true, false).unwrap(), ["a/b/c/d/e/", "foo/bar/baz/", "f.txt"]);
+        let rows = render(&dir, false, false).unwrap();
+        assert_eq!(rows, ["   - a/b/c/d/e/", "   - foo/bar/baz/", "   0 f.txt"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_chain_stops_at_a_directory_with_more_than_one_entry() {
+        let dir = scratch_dir("chain-stop");
+        fs::create_dir_all(dir.join("one/two")).unwrap();
+        fs::create_dir(dir.join("one/two/three")).unwrap();
+        fs::create_dir(dir.join("one/two/four")).unwrap();
+        fs::create_dir_all(dir.join("dot/sub")).unwrap();
+        fs::write(dir.join("dot/.hidden"), "").unwrap();
+        fs::create_dir_all(dir.join("top/a")).unwrap();
+        fs::create_dir(dir.join("top/b")).unwrap();
+        assert_eq!(render(&dir, true, false).unwrap(), ["dot/", "one/two/", "top/"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_chain_ends_before_a_file_or_a_link() {
+        let dir = scratch_dir("chain-end");
+        fs::create_dir_all(dir.join("f/g")).unwrap();
+        fs::write(dir.join("f/g/only.rs"), "").unwrap();
+        fs::create_dir_all(dir.join("l/m")).unwrap();
+        fs::create_dir(dir.join("target")).unwrap();
+        std::os::unix::fs::symlink("../../target", dir.join("l/m/link")).unwrap();
+        // A link to a dir holding a sole subdirectory is not expanded either.
+        fs::create_dir_all(dir.join("real/inner")).unwrap();
+        std::os::unix::fs::symlink("real", dir.join("to-real")).unwrap();
+        let rows = render(&dir, true, false).unwrap();
+        assert_eq!(rows, ["f/g/", "l/m/", "real/inner/", "target/", "to-real"]);
+        let rows = render(&dir, false, false).unwrap();
+        assert!(rows[4].ends_with(" to-real -> real"), "{rows:?}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_level_ends_the_chain() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch_dir("chain-perm");
+        fs::create_dir_all(dir.join("p/q/r")).unwrap();
+        fs::set_permissions(dir.join("p/q"), fs::Permissions::from_mode(0o000)).unwrap();
+        let rows = render(&dir, true, false);
+        fs::set_permissions(dir.join("p/q"), fs::Permissions::from_mode(0o755)).unwrap();
+        // Root reads through a 000 dir, so the chain may run on to r.
+        assert!(matches!(rows.unwrap().as_slice(), [s] if s == "p/q/" || s == "p/q/r/"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn every_segment_of_a_chain_is_escaped() {
+        let dir = scratch_dir("chain-escape");
+        fs::create_dir_all(dir.join("a\x1b/b\x07c")).unwrap();
+        let rows = render(&dir, true, false).unwrap();
+        assert_eq!(rows, ["a\\u{1b}/b\\u{7}c/"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_collapsed_row_takes_the_status_of_everything_inside_it() {
+        let st = vec![
+            (*b"??", "foo/bar/baz/new.rs".to_string()),
+            (*b"!!", "foo/bar/baz/debug.log".to_string()),
+            (*b"!!", "ign/sub/".to_string()),
+            (*b"!!", "half/".to_string()),
+        ];
+        let cols = git_columns(&paths(&["foo/bar/baz", "ign/sub", "half/way", "clean/x"]), &st);
+        // An ignored dir at or above the row's path covers the whole row;
+        // an ignored file below it doesn't.
+        assert_eq!(cols, [['-', 'N'], ['-', 'I'], ['-', 'I'], ['-', '-']]);
+        let st = vec![(*b"!!", "foo/bar/baz/deeper/".to_string())];
+        assert_eq!(git_columns(&paths(&["foo/bar/baz"]), &st), [['-', '-']]);
+        // A sibling whose name merely extends the row's is not above it.
+        assert!(!covers("foo/ba", "foo/bar"));
+        assert!(covers("foo", "foo/bar"));
+        assert!(covers("foo/bar", "foo/bar"));
     }
 }
