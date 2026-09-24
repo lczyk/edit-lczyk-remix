@@ -1,6 +1,6 @@
 [package]
 name = "edit"
-version = "0.18.0"  # source: /VERSION (synced by `make sync-version`; do not edit by hand)
+version = "0.19.0"  # source: /VERSION (synced by `make sync-version`; do not edit by hand)
 
 edition.workspace = true
 license.workspace = true
