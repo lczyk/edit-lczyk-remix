@@ -133,6 +133,10 @@ the viewer:
 - Directories first, then files, each sorted case-insensitively. Dotfiles
   are listed; `.` and `..` are not. A symlink to a directory groups with the
   directories and shows its target.
+- A directory whose only entry is another directory is shown with it,
+  `foo/bar/baz/`, down to the first directory that holds something else --
+  several entries, a file, a symlink, or nothing. Symlinks are never
+  expanded. The git column covers everything under the whole path.
 - Size in decimal units, like `eza`, at most four characters wide.
   Directories and symlinks show `-`.
 - The git column is `eza --git`'s: staged then unstaged, `N` new, `M`
