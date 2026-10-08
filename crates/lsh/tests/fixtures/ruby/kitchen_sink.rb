@@ -142,3 +142,60 @@ plain = <<EOS
 EOS mid-line stays body
 EOS
 puts sql
+greeting = <<~MSG
+  hi #{name}, \t#{items.map { |i| i * 2 }.sum} total
+MSG
+
+# Interpolation is code: its quotes and braces don't end the string.
+say = "stop=#{final["reason"] || "?"} n=#{h.fetch(:k) { {} }.size}"
+multi = "a #{
+  value
+} b"
+tick = `ls #{dir}`
+
+# Regexp literals vs division
+x = /\d+ #{n} \/ \w/i
+line =~ /^#/ && line !~ /x/
+assert_match(/nope` not found/, msg)
+words.grep /re/
+when /a|b/
+half = total / 2
+ratio = a/b
+total /= 2
+
+# Multi-line and nested percent literals
+list = %w[one two
+          three]
+rx = %r{\d{3}-\d{4}}
+
+# Labels, symbols, scope
+opts = { in: 1, class: 2, if: 3 }
+call(key: v, other: 1)
+def kw(a:, b: 1) end
+pick = flag ? left : right
+Foo::Bar
+sum = xs.reduce(:+)
+sorted = xs.sort_by(&:size)
+
+# Method names after a dot are never keywords
+x.class
+x.nil?
+x.then { _1 }
+
+# Underscores and globals
+a, _, c = triple
+$stderr.puts $0, $!
+
+# Block params
+xs.each { |k, v| p k }
+xs.each_with_index do |item, i|
+end
+
+require "json"
+require_relative "lib"
+include Comparable
+attr_reader :name
+private
+
+__END__
+anything goes here: "unclosed `string

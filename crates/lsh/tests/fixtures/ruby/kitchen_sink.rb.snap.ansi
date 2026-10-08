@@ -24,12 +24,12 @@
 \x1b[94mtrue\x1b[m
 \x1b[94mfalse\x1b[m
 \x1b[94mnil\x1b[m
-\x1b[94mObject\x1b[m
-\x1b[94mString\x1b[m
+\x1b[36mObject\x1b[m
+\x1b[36mString\x1b[m
 
 \x1b[32m# Strings\x1b[m
 \x1b[91m'single quotes with escape: \\' \\n \\t \\\\'\x1b[m
-\x1b[91m"double quotes with escape: \\" \\n \\t \\\\"\x1b[m
+\x1b[91m"double quotes with escape: \x1b[m\x1b[33m\\"\x1b[m\x1b[91m \x1b[m\x1b[33m\\n\x1b[m\x1b[91m \x1b[m\x1b[33m\\t\x1b[m\x1b[91m \x1b[m\x1b[33m\\\\\x1b[m\x1b[91m"\x1b[m
 \x1b[91m`echo shell command`\x1b[m
 
 \x1b[32m# Symbols and variables\x1b[m
@@ -69,21 +69,21 @@
 \x1b[95mend\x1b[m
 
 \x1b[95mbegin\x1b[m
-  raise \x1b[91m"oops"\x1b[m
-\x1b[95mrescue\x1b[m \x1b[94mStandardError\x1b[m => e
+  \x1b[95mraise\x1b[m \x1b[91m"oops"\x1b[m
+\x1b[95mrescue\x1b[m \x1b[36mStandardError\x1b[m => e
   \x1b[95mretry\x1b[m
 \x1b[95mensure\x1b[m
   puts e
 \x1b[95mend\x1b[m
 
 \x1b[32m# Definitions and method calls\x1b[m
-\x1b[95mmodule\x1b[m \x1b[94mDemo\x1b[m
-  \x1b[95mclass\x1b[m \x1b[94mAnimal\x1b[m
+\x1b[95mmodule\x1b[m \x1b[36mDemo\x1b[m
+  \x1b[95mclass\x1b[m \x1b[36mAnimal\x1b[m
     \x1b[95mdef \x1b[m\x1b[93minitialize\x1b[m(name)
       \x1b[96m@name\x1b[m = name
     \x1b[95mend\x1b[m
 
-    \x1b[95mdef \x1b[m\x1b[93mspeak!\x1b[m =  puts \x1b[91m"#{@name} speaks"\x1b[m
+    \x1b[95mdef \x1b[m\x1b[93mspeak!\x1b[m =  puts \x1b[91m"\x1b[m\x1b[33m#{\x1b[m\x1b[96m@name\x1b[m\x1b[33m}\x1b[m\x1b[91m speaks"\x1b[m
   \x1b[95mend\x1b[m
 \x1b[95mend\x1b[m
 
@@ -92,17 +92,17 @@
 
 \x1b[94mBEGIN\x1b[m { puts \x1b[91m"start"\x1b[m }
 \x1b[94mEND\x1b[m { puts \x1b[91m"finish"\x1b[m }
-\x1b[94mdefined?\x1b[m \x1b[94mDemo\x1b[m
+\x1b[94mdefined?\x1b[m \x1b[36mDemo\x1b[m
 \x1b[94mself\x1b[m
 \x1b[94msuper\x1b[m
 \x1b[94myield\x1b[m
 
 puts \x1b[91m"hello"\x1b[m
-\x1b[94mArray\x1b[m.\x1b[93mnew\x1b[m(\x1b[92m3\x1b[m)
+\x1b[36mArray\x1b[m.\x1b[93mnew\x1b[m(\x1b[92m3\x1b[m)
 \x1b[93mgreet\x1b[m(\x1b[91m"world"\x1b[m)
 
 \x1b[32m# Singleton method defs\x1b[m
-\x1b[95mclass\x1b[m \x1b[94mFoo\x1b[m
+\x1b[95mclass\x1b[m \x1b[36mFoo\x1b[m
   \x1b[95mdef self.\x1b[m\x1b[93mbar\x1b[m
     \x1b[92m42\x1b[m
   \x1b[95mend\x1b[m
@@ -126,7 +126,7 @@ ch_esc = \x1b[92m?\\n\x1b[m
 \x1b[32m# Strings carry raw newlines, single- and double-quoted alike.\x1b[m
 raw = \x1b[91m'line one\x1b[m
 \x1b[91mline two'\x1b[m
-esc = \x1b[91m"escaped \\" quote\x1b[m
+esc = \x1b[91m"escaped \x1b[m\x1b[33m\\"\x1b[m\x1b[91m quote\x1b[m
 \x1b[91mline two"\x1b[m
 
 \x1b[32m# Heredocs: squiggly, dashed, quoted, and plain. The rest of the opener line\x1b[m
@@ -142,4 +142,61 @@ plain = \x1b[91m<<EOS\x1b[m
 \x1b[91mEOS mid-line stays body\x1b[m
 EOS
 puts sql
+greeting = \x1b[91m<<~MSG\x1b[m
+\x1b[91m  hi \x1b[m\x1b[33m#{\x1b[mname\x1b[33m}\x1b[m\x1b[91m, \x1b[m\x1b[33m\\t\x1b[m\x1b[33m#{\x1b[mitems.map { |i| i * \x1b[92m2\x1b[m }.sum\x1b[33m}\x1b[m\x1b[91m total\x1b[m
+MSG
+
+\x1b[32m# Interpolation is code: its quotes and braces don't end the string.\x1b[m
+say = \x1b[91m"stop=\x1b[m\x1b[33m#{\x1b[mfinal[\x1b[91m"reason"\x1b[m] || \x1b[91m"?"\x1b[m\x1b[33m}\x1b[m\x1b[91m n=\x1b[m\x1b[33m#{\x1b[mh.\x1b[93mfetch\x1b[m(\x1b[94m:k\x1b[m) { {} }.size\x1b[33m}\x1b[m\x1b[91m"\x1b[m
+multi = \x1b[91m"a \x1b[m\x1b[33m#{\x1b[m
+  value
+\x1b[33m}\x1b[m\x1b[91m b"\x1b[m
+tick = \x1b[91m`ls \x1b[m\x1b[33m#{\x1b[mdir\x1b[33m}\x1b[m\x1b[91m`\x1b[m
+
+\x1b[32m# Regexp literals vs division\x1b[m
+x = \x1b[91m/\\d+ \x1b[m\x1b[33m#{\x1b[mn\x1b[33m}\x1b[m\x1b[91m \\/ \\w/i\x1b[m
+line =~ \x1b[91m/^#/\x1b[m && line !~ \x1b[91m/x/\x1b[m
+\x1b[93massert_match\x1b[m(\x1b[91m/nope` not found/\x1b[m, msg)
+words.grep \x1b[91m/re/\x1b[m
+\x1b[95mwhen\x1b[m \x1b[91m/a|b/\x1b[m
+half = total / \x1b[92m2\x1b[m
+ratio = a/b
+total /= \x1b[92m2\x1b[m
+
+\x1b[32m# Multi-line and nested percent literals\x1b[m
+list = \x1b[91m%w[one two\x1b[m
+\x1b[91m          three]\x1b[m
+rx = \x1b[91m%r{\\d{3}-\\d{4}}\x1b[m
+
+\x1b[32m# Labels, symbols, scope\x1b[m
+opts = { \x1b[94min:\x1b[m \x1b[92m1\x1b[m, \x1b[94mclass:\x1b[m \x1b[92m2\x1b[m, \x1b[94mif:\x1b[m \x1b[92m3\x1b[m }
+\x1b[93mcall\x1b[m(\x1b[94mkey:\x1b[m v, \x1b[94mother:\x1b[m \x1b[92m1\x1b[m)
+\x1b[95mdef \x1b[m\x1b[93mkw\x1b[m(\x1b[94ma:\x1b[m, \x1b[94mb:\x1b[m \x1b[92m1\x1b[m) \x1b[95mend\x1b[m
+pick = flag ? left : right
+\x1b[36mFoo\x1b[m::\x1b[36mBar\x1b[m
+sum = xs.\x1b[93mreduce\x1b[m(\x1b[94m:+\x1b[m)
+sorted = xs.\x1b[93msort_by\x1b[m(&\x1b[94m:size\x1b[m)
+
+\x1b[32m# Method names after a dot are never keywords\x1b[m
+x.class
+x.nil?
+x.then { _1 }
+
+\x1b[32m# Underscores and globals\x1b[m
+a, _, c = triple
+\x1b[96m$stderr\x1b[m.puts \x1b[96m$0\x1b[m, \x1b[96m$!\x1b[m
+
+\x1b[32m# Block params\x1b[m
+xs.each { |\x1b[96mk, v\x1b[m| p k }
+xs.each_with_index \x1b[95mdo\x1b[m |\x1b[96mitem, i\x1b[m|
+\x1b[95mend\x1b[m
+
+\x1b[94mrequire\x1b[m \x1b[91m"json"\x1b[m
+\x1b[94mrequire_relative\x1b[m \x1b[91m"lib"\x1b[m
+\x1b[94minclude\x1b[m \x1b[36mComparable\x1b[m
+\x1b[94mattr_reader\x1b[m \x1b[94m:name\x1b[m
+\x1b[94mprivate\x1b[m
+
+\x1b[32m__END__\x1b[m
+\x1b[32manything goes here: "unclosed `string\x1b[m
 

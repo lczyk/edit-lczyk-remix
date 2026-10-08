@@ -21,11 +21,19 @@
 {"line":24,"kind":"constant.language","text":"true"}
 {"line":25,"kind":"constant.language","text":"false"}
 {"line":26,"kind":"constant.language","text":"nil"}
-{"line":27,"kind":"constant.language","text":"Object"}
-{"line":28,"kind":"constant.language","text":"String"}
+{"line":27,"kind":"storage.type","text":"Object"}
+{"line":28,"kind":"storage.type","text":"String"}
 {"line":30,"kind":"comment","text":"# Strings"}
 {"line":31,"kind":"string","text":"'single quotes with escape: \\' \\n \\t \\\\'"}
-{"line":32,"kind":"string","text":"\"double quotes with escape: \\\" \\n \\t \\\\\""}
+{"line":32,"kind":"string","text":"\"double quotes with escape: "}
+{"line":32,"kind":"constant.character.escape","text":"\\\""}
+{"line":32,"kind":"string","text":" "}
+{"line":32,"kind":"constant.character.escape","text":"\\n"}
+{"line":32,"kind":"string","text":" "}
+{"line":32,"kind":"constant.character.escape","text":"\\t"}
+{"line":32,"kind":"string","text":" "}
+{"line":32,"kind":"constant.character.escape","text":"\\\\"}
+{"line":32,"kind":"string","text":"\""}
 {"line":33,"kind":"string","text":"`echo shell command`"}
 {"line":35,"kind":"comment","text":"# Symbols and variables"}
 {"line":36,"kind":"constant.language","text":":symbol"}
@@ -93,11 +101,13 @@
 {"line":68,"kind":"keyword.control","text":"redo"}
 {"line":69,"kind":"keyword.control","text":"end"}
 {"line":71,"kind":"keyword.control","text":"begin"}
-{"line":72,"kind":"other","text":"  raise "}
+{"line":72,"kind":"other","text":"  "}
+{"line":72,"kind":"keyword.control","text":"raise"}
+{"line":72,"kind":"other","text":" "}
 {"line":72,"kind":"string","text":"\"oops\""}
 {"line":73,"kind":"keyword.control","text":"rescue"}
 {"line":73,"kind":"other","text":" "}
-{"line":73,"kind":"constant.language","text":"StandardError"}
+{"line":73,"kind":"storage.type","text":"StandardError"}
 {"line":73,"kind":"other","text":" => e"}
 {"line":74,"kind":"other","text":"  "}
 {"line":74,"kind":"keyword.control","text":"retry"}
@@ -107,11 +117,11 @@
 {"line":79,"kind":"comment","text":"# Definitions and method calls"}
 {"line":80,"kind":"keyword.control","text":"module"}
 {"line":80,"kind":"other","text":" "}
-{"line":80,"kind":"constant.language","text":"Demo"}
+{"line":80,"kind":"storage.type","text":"Demo"}
 {"line":81,"kind":"other","text":"  "}
 {"line":81,"kind":"keyword.control","text":"class"}
 {"line":81,"kind":"other","text":" "}
-{"line":81,"kind":"constant.language","text":"Animal"}
+{"line":81,"kind":"storage.type","text":"Animal"}
 {"line":82,"kind":"other","text":"    "}
 {"line":82,"kind":"keyword.control","text":"def "}
 {"line":82,"kind":"method","text":"initialize"}
@@ -125,7 +135,11 @@
 {"line":86,"kind":"keyword.control","text":"def "}
 {"line":86,"kind":"method","text":"speak!"}
 {"line":86,"kind":"other","text":" =  puts "}
-{"line":86,"kind":"string","text":"\"#{@name} speaks\""}
+{"line":86,"kind":"string","text":"\""}
+{"line":86,"kind":"constant.character.escape","text":"#{"}
+{"line":86,"kind":"variable","text":"@name"}
+{"line":86,"kind":"constant.character.escape","text":"}"}
+{"line":86,"kind":"string","text":" speaks\""}
 {"line":87,"kind":"other","text":"  "}
 {"line":87,"kind":"keyword.control","text":"end"}
 {"line":88,"kind":"keyword.control","text":"end"}
@@ -143,13 +157,13 @@
 {"line":94,"kind":"other","text":" }"}
 {"line":95,"kind":"keyword.other","text":"defined?"}
 {"line":95,"kind":"other","text":" "}
-{"line":95,"kind":"constant.language","text":"Demo"}
+{"line":95,"kind":"storage.type","text":"Demo"}
 {"line":96,"kind":"keyword.other","text":"self"}
 {"line":97,"kind":"keyword.other","text":"super"}
 {"line":98,"kind":"keyword.other","text":"yield"}
 {"line":100,"kind":"other","text":"puts "}
 {"line":100,"kind":"string","text":"\"hello\""}
-{"line":101,"kind":"constant.language","text":"Array"}
+{"line":101,"kind":"storage.type","text":"Array"}
 {"line":101,"kind":"other","text":"."}
 {"line":101,"kind":"method","text":"new"}
 {"line":101,"kind":"other","text":"("}
@@ -162,7 +176,7 @@
 {"line":104,"kind":"comment","text":"# Singleton method defs"}
 {"line":105,"kind":"keyword.control","text":"class"}
 {"line":105,"kind":"other","text":" "}
-{"line":105,"kind":"constant.language","text":"Foo"}
+{"line":105,"kind":"storage.type","text":"Foo"}
 {"line":106,"kind":"other","text":"  "}
 {"line":106,"kind":"keyword.control","text":"def self."}
 {"line":106,"kind":"method","text":"bar"}
@@ -199,7 +213,9 @@
 {"line":127,"kind":"string","text":"'line one"}
 {"line":128,"kind":"string","text":"line two'"}
 {"line":129,"kind":"other","text":"esc = "}
-{"line":129,"kind":"string","text":"\"escaped \\\" quote"}
+{"line":129,"kind":"string","text":"\"escaped "}
+{"line":129,"kind":"constant.character.escape","text":"\\\""}
+{"line":129,"kind":"string","text":" quote"}
 {"line":130,"kind":"string","text":"line two\""}
 {"line":132,"kind":"comment","text":"# Heredocs: squiggly, dashed, quoted, and plain. The rest of the opener line"}
 {"line":133,"kind":"comment","text":"# is still code; the body starts on the next line."}
@@ -218,3 +234,161 @@
 {"line":142,"kind":"string","text":"EOS mid-line stays body"}
 {"line":143,"kind":"other","text":"EOS"}
 {"line":144,"kind":"other","text":"puts sql"}
+{"line":145,"kind":"other","text":"greeting = "}
+{"line":145,"kind":"string","text":"<<~MSG"}
+{"line":146,"kind":"string","text":"  hi "}
+{"line":146,"kind":"constant.character.escape","text":"#{"}
+{"line":146,"kind":"other","text":"name"}
+{"line":146,"kind":"constant.character.escape","text":"}"}
+{"line":146,"kind":"string","text":", "}
+{"line":146,"kind":"constant.character.escape","text":"\\t"}
+{"line":146,"kind":"constant.character.escape","text":"#{"}
+{"line":146,"kind":"other","text":"items.map { |i| i * "}
+{"line":146,"kind":"constant.numeric","text":"2"}
+{"line":146,"kind":"other","text":" }.sum"}
+{"line":146,"kind":"constant.character.escape","text":"}"}
+{"line":146,"kind":"string","text":" total"}
+{"line":147,"kind":"other","text":"MSG"}
+{"line":149,"kind":"comment","text":"# Interpolation is code: its quotes and braces don't end the string."}
+{"line":150,"kind":"other","text":"say = "}
+{"line":150,"kind":"string","text":"\"stop="}
+{"line":150,"kind":"constant.character.escape","text":"#{"}
+{"line":150,"kind":"other","text":"final["}
+{"line":150,"kind":"string","text":"\"reason\""}
+{"line":150,"kind":"other","text":"] || "}
+{"line":150,"kind":"string","text":"\"?\""}
+{"line":150,"kind":"constant.character.escape","text":"}"}
+{"line":150,"kind":"string","text":" n="}
+{"line":150,"kind":"constant.character.escape","text":"#{"}
+{"line":150,"kind":"other","text":"h."}
+{"line":150,"kind":"method","text":"fetch"}
+{"line":150,"kind":"other","text":"("}
+{"line":150,"kind":"constant.language","text":":k"}
+{"line":150,"kind":"other","text":") { {} }.size"}
+{"line":150,"kind":"constant.character.escape","text":"}"}
+{"line":150,"kind":"string","text":"\""}
+{"line":151,"kind":"other","text":"multi = "}
+{"line":151,"kind":"string","text":"\"a "}
+{"line":151,"kind":"constant.character.escape","text":"#{"}
+{"line":152,"kind":"other","text":"  value"}
+{"line":153,"kind":"constant.character.escape","text":"}"}
+{"line":153,"kind":"string","text":" b\""}
+{"line":154,"kind":"other","text":"tick = "}
+{"line":154,"kind":"string","text":"`ls "}
+{"line":154,"kind":"constant.character.escape","text":"#{"}
+{"line":154,"kind":"other","text":"dir"}
+{"line":154,"kind":"constant.character.escape","text":"}"}
+{"line":154,"kind":"string","text":"`"}
+{"line":156,"kind":"comment","text":"# Regexp literals vs division"}
+{"line":157,"kind":"other","text":"x = "}
+{"line":157,"kind":"string","text":"/\\d+ "}
+{"line":157,"kind":"constant.character.escape","text":"#{"}
+{"line":157,"kind":"other","text":"n"}
+{"line":157,"kind":"constant.character.escape","text":"}"}
+{"line":157,"kind":"string","text":" \\/ \\w/i"}
+{"line":158,"kind":"other","text":"line =~ "}
+{"line":158,"kind":"string","text":"/^#/"}
+{"line":158,"kind":"other","text":" && line !~ "}
+{"line":158,"kind":"string","text":"/x/"}
+{"line":159,"kind":"method","text":"assert_match"}
+{"line":159,"kind":"other","text":"("}
+{"line":159,"kind":"string","text":"/nope` not found/"}
+{"line":159,"kind":"other","text":", msg)"}
+{"line":160,"kind":"other","text":"words.grep "}
+{"line":160,"kind":"string","text":"/re/"}
+{"line":161,"kind":"keyword.control","text":"when"}
+{"line":161,"kind":"other","text":" "}
+{"line":161,"kind":"string","text":"/a|b/"}
+{"line":162,"kind":"other","text":"half = total / "}
+{"line":162,"kind":"constant.numeric","text":"2"}
+{"line":163,"kind":"other","text":"ratio = a/b"}
+{"line":164,"kind":"other","text":"total /= "}
+{"line":164,"kind":"constant.numeric","text":"2"}
+{"line":166,"kind":"comment","text":"# Multi-line and nested percent literals"}
+{"line":167,"kind":"other","text":"list = "}
+{"line":167,"kind":"string","text":"%w[one two"}
+{"line":168,"kind":"string","text":"          three]"}
+{"line":169,"kind":"other","text":"rx = "}
+{"line":169,"kind":"string","text":"%r{\\d{3}-\\d{4}}"}
+{"line":171,"kind":"comment","text":"# Labels, symbols, scope"}
+{"line":172,"kind":"other","text":"opts = { "}
+{"line":172,"kind":"constant.language","text":"in:"}
+{"line":172,"kind":"other","text":" "}
+{"line":172,"kind":"constant.numeric","text":"1"}
+{"line":172,"kind":"other","text":", "}
+{"line":172,"kind":"constant.language","text":"class:"}
+{"line":172,"kind":"other","text":" "}
+{"line":172,"kind":"constant.numeric","text":"2"}
+{"line":172,"kind":"other","text":", "}
+{"line":172,"kind":"constant.language","text":"if:"}
+{"line":172,"kind":"other","text":" "}
+{"line":172,"kind":"constant.numeric","text":"3"}
+{"line":172,"kind":"other","text":" }"}
+{"line":173,"kind":"method","text":"call"}
+{"line":173,"kind":"other","text":"("}
+{"line":173,"kind":"constant.language","text":"key:"}
+{"line":173,"kind":"other","text":" v, "}
+{"line":173,"kind":"constant.language","text":"other:"}
+{"line":173,"kind":"other","text":" "}
+{"line":173,"kind":"constant.numeric","text":"1"}
+{"line":173,"kind":"other","text":")"}
+{"line":174,"kind":"keyword.control","text":"def "}
+{"line":174,"kind":"method","text":"kw"}
+{"line":174,"kind":"other","text":"("}
+{"line":174,"kind":"constant.language","text":"a:"}
+{"line":174,"kind":"other","text":", "}
+{"line":174,"kind":"constant.language","text":"b:"}
+{"line":174,"kind":"other","text":" "}
+{"line":174,"kind":"constant.numeric","text":"1"}
+{"line":174,"kind":"other","text":") "}
+{"line":174,"kind":"keyword.control","text":"end"}
+{"line":175,"kind":"other","text":"pick = flag ? left : right"}
+{"line":176,"kind":"storage.type","text":"Foo"}
+{"line":176,"kind":"other","text":"::"}
+{"line":176,"kind":"storage.type","text":"Bar"}
+{"line":177,"kind":"other","text":"sum = xs."}
+{"line":177,"kind":"method","text":"reduce"}
+{"line":177,"kind":"other","text":"("}
+{"line":177,"kind":"constant.language","text":":+"}
+{"line":177,"kind":"other","text":")"}
+{"line":178,"kind":"other","text":"sorted = xs."}
+{"line":178,"kind":"method","text":"sort_by"}
+{"line":178,"kind":"other","text":"(&"}
+{"line":178,"kind":"constant.language","text":":size"}
+{"line":178,"kind":"other","text":")"}
+{"line":180,"kind":"comment","text":"# Method names after a dot are never keywords"}
+{"line":181,"kind":"other","text":"x.class"}
+{"line":182,"kind":"other","text":"x.nil?"}
+{"line":183,"kind":"other","text":"x.then { _1 }"}
+{"line":185,"kind":"comment","text":"# Underscores and globals"}
+{"line":186,"kind":"other","text":"a, _, c = triple"}
+{"line":187,"kind":"variable","text":"$stderr"}
+{"line":187,"kind":"other","text":".puts "}
+{"line":187,"kind":"variable","text":"$0"}
+{"line":187,"kind":"other","text":", "}
+{"line":187,"kind":"variable","text":"$!"}
+{"line":189,"kind":"comment","text":"# Block params"}
+{"line":190,"kind":"other","text":"xs.each { |"}
+{"line":190,"kind":"variable","text":"k, v"}
+{"line":190,"kind":"other","text":"| p k }"}
+{"line":191,"kind":"other","text":"xs.each_with_index "}
+{"line":191,"kind":"keyword.control","text":"do"}
+{"line":191,"kind":"other","text":" |"}
+{"line":191,"kind":"variable","text":"item, i"}
+{"line":191,"kind":"other","text":"|"}
+{"line":192,"kind":"keyword.control","text":"end"}
+{"line":194,"kind":"keyword.other","text":"require"}
+{"line":194,"kind":"other","text":" "}
+{"line":194,"kind":"string","text":"\"json\""}
+{"line":195,"kind":"keyword.other","text":"require_relative"}
+{"line":195,"kind":"other","text":" "}
+{"line":195,"kind":"string","text":"\"lib\""}
+{"line":196,"kind":"keyword.other","text":"include"}
+{"line":196,"kind":"other","text":" "}
+{"line":196,"kind":"storage.type","text":"Comparable"}
+{"line":197,"kind":"keyword.other","text":"attr_reader"}
+{"line":197,"kind":"other","text":" "}
+{"line":197,"kind":"constant.language","text":":name"}
+{"line":198,"kind":"keyword.other","text":"private"}
+{"line":200,"kind":"comment","text":"__END__"}
+{"line":201,"kind":"comment","text":"anything goes here: \"unclosed `string"}

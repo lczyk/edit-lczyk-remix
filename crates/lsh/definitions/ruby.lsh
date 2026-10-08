@@ -28,11 +28,22 @@ pub fn ruby() {
                 }
                 continue;
             }
+            if /__END__$/ {
+                loop {
+                    yield comment;
+                    await input;
+                    if /.*/ {}
+                }
+            }
         }
 
-        if /<<[~-]?['"]?([A-Z_][A-Za-z0-9_]*)['"]?/ {
+        if /<<[~-]?'([A-Z_][A-Za-z0-9_]*)'/ {
             // Heredoc opener. The rest of this line is ordinary code; the
             // body starts on the next one, so only note it for now.
+            yield string;
+            save $1;
+            heredoc = 2;
+        } else if /<<[~-]?"?([A-Z_][A-Za-z0-9_]*)"?/ {
             yield string;
             save $1;
             heredoc = 1;
@@ -43,7 +54,7 @@ pub fn ruby() {
         yield other;
     }
 
-    if heredoc == one {
+    if heredoc != zero {
         loop {
             await input;
             if /[ \t]*/ {}
@@ -53,7 +64,13 @@ pub fn ruby() {
                     break;
                 }
             }
-            if /.*/ {}
+            if heredoc == one {
+                until /$/ {
+                    ruby_dquote_run();
+                }
+            } else {
+                if /.*/ {}
+            }
             yield string;
         }
     }
@@ -64,14 +81,14 @@ pub fn ruby() {
 fn ruby_token() {
     if /#.*/ {
         yield comment;
-    } else if /%[wWiIqQrxs]\[[^\]]*\]/ {
-        yield string;
-    } else if /%[wWiIqQrxs]\([^)]*\)/ {
-        yield string;
-    } else if /%[wWiIqQrxs]\{[^}]*\}/ {
-        yield string;
-    } else if /%[wWiIqQrxs]<[^>]*>/ {
-        yield string;
+    } else if /%[wWiIqQrxs]\[/ {
+        ruby_pct_bracket();
+    } else if /%[wWiIqQrxs]\(/ {
+        ruby_pct_paren();
+    } else if /%[wWiIqQrxs]\{/ {
+        ruby_pct_brace();
+    } else if /%[wWiIqQrxs]</ {
+        ruby_pct_angle();
     } else if /\?(?:\\[a-zA-Z0-9\\'"]|[A-Za-z0-9_])\>/ {
         yield constant.numeric;
     } else if /'/ {
@@ -84,29 +101,44 @@ fn ruby_token() {
         }
     } else if /"/ {
         loop {
-            if /[^"\\]+/ {}
-            yield string;
-            if /\\./ {}
-            else if /"/ { yield string; break; }
-            else { await input; }
+            ruby_dquote_run();
+            if /"/ { yield string; break; }
+            else if /$/ { await input; }
         }
     } else if /`/ {
         loop {
+            if /[^`\\#]+/ {}
             yield string;
-            if /\\./ {}
+            if /\\./ { yield constant.character.escape; }
+            else if /#\{/ { ruby_interpolation(); }
+            else if /#/ {}
             else if /`/ { yield string; break; }
-            await input;
+            else { await input; }
         }
-    } else if /(?:begin|break|case|class|do|else|elsif|end|ensure|for|if|in|module|next|redo|rescue|retry|return|then|unless|until|when|while)\>/ {
+    } else if /([A-Za-z_]\w*[!?]?:)(?:\s|,|\)|$)/ {
+        // Hash label (key: value) or keyword argument; still a symbol.
+        yield $1 as constant.language;
+        ruby_regexp_after_punct();
+    } else if /do\>/ {
         yield keyword.control;
+        ruby_block_params();
+    } else if /\{/ {
+        ruby_block_params();
+    } else if /(?:begin|break|case|class|else|elsif|end|ensure|for|if|in|module|next|redo|rescue|retry|return|then|unless|until|when|while)\>/ {
+        yield keyword.control;
+        ruby_regexp_after_word();
     } else if /def\s+(?:self|[A-Z]\w*)\.(\w+[!?=]?)/ {
         yield keyword.control;
         yield $1 as method;
     } else if /def\s+(\w+[!?=]?)/ {
         yield keyword.control;
         yield $1 as method;
-    } else if /(?:BEGIN|END|alias|defined\?|self|super|undef|yield)\>/ {
+    } else if /(?:catch|fail|loop|raise|throw)\>/ {
+        yield keyword.control;
+        ruby_regexp_after_word();
+    } else if /(?:BEGIN|END|__ENCODING__|__FILE__|__LINE__|__dir__|__method__|alias|and|attr_accessor|attr_reader|attr_writer|defined\?|extend|include|lambda|module_function|not|or|prepend|private|proc|protected|public|require_relative|require|self|super|undef|yield)\>/ {
         yield keyword.other;
+        ruby_regexp_after_word();
     } else if /(?:true|false|nil)\>/ {
         yield constant.language;
     } else if /\.\.\.?/ {
@@ -117,33 +149,160 @@ fn ruby_token() {
         } else {
             yield constant.numeric;
         }
-    } else if /(?i:-?[\d_]+\.[\d_]+(?:e[+-]?[\d_]+)?r?i?)/ {
+    } else if /(?i:-?\d[\d_]*\.\d[\d_]*(?:e[+-]?\d[\d_]*)?r?i?)/ {
         if /\w+/ {
             // Invalid numeric literal
         } else {
             yield constant.numeric;
         }
-    } else if /(?i:-?\.[\d_]+(?:e[+-]?[\d_]+)?r?i?)/ {
+    } else if /(?i:-?\d[\d_]*(?:e[+-]?\d[\d_]*)?r?i?)/ {
         if /\w+/ {
             // Invalid numeric literal
         } else {
             yield constant.numeric;
         }
-    } else if /(?i:-?[\d_]+(?:e[+-]?[\d_]+)?r?i?)/ {
-        if /\w+/ {
-            // Invalid numeric literal
-        } else {
-            yield constant.numeric;
-        }
+    } else if /\.\s*(\w+[!?]?)\s*\(/ {
+        // A method name after "." is never a keyword: x.class, x.nil?.
+        yield $1 as method;
+        ruby_regexp_after_punct();
+    } else if /\.\s*\w+[!?]?/ {
+        ruby_regexp_after_word();
     } else if /(?:@{1,2}|\$)[A-Za-z_]\w*/ {
         yield variable;
+    } else if /\$(?:\d+|[!@&~?$;,.\/\\<>_*"':])/ {
+        yield variable;
+    } else if /::/ {
+        // Scope resolution, not the start of a symbol.
     } else if /:[A-Za-z_]\w*[!?=]?/ {
         yield constant.language;
-    } else if /[A-Z]\w*/ {
+    } else if /:(?:\[\]=?|<=>|===?|=~|!=|<<|>>|<=|>=|\*\*|[-+*\/%<>!~^&|])/ {
         yield constant.language;
+    } else if /[A-Z][A-Z0-9_]*\>/ {
+        yield constant.language;
+    } else if /[A-Z]\w*/ {
+        yield storage.type;
     } else if /(\w+[!?=]?)\s*\(/ {
         yield $1 as method;
+        ruby_regexp_after_punct();
     } else if /\w+[!?=]?/ {
         // Gobble word chars to align the next iteration on a word boundary.
+        ruby_regexp_after_word();
+    } else if /(?:=~?|!~|[(\[,;!|&])/ {
+        ruby_regexp_after_punct();
+    }
+}
+
+// Where an operand is expected, "/" opens a regexp rather than dividing.
+fn ruby_regexp_after_punct() {
+    if /\s*/ {}
+    yield other;
+    if /\// {
+        ruby_regexp();
+    }
+}
+
+// After a bare word ("scan /x/", "when /x/") only a "/" hugging its first
+// character opens a regexp, so "x / y" and "x /= y" stay arithmetic.
+fn ruby_regexp_after_word() {
+    if /\s+/ {
+        yield other;
+        if /\/(?:\\.|[^\s=\\\/])/ {
+            ruby_regexp();
+        }
+    }
+}
+
+// Runs after the opening "/" is consumed.
+fn ruby_regexp() {
+    loop {
+        if /[^\/\\#]+/ {}
+        yield string;
+        if /\\./ {}
+        else if /#\{/ { ruby_interpolation(); }
+        else if /#/ {}
+        else if /\/[imxounse]*/ { yield string; break; }
+        else { await input; }
+    }
+}
+
+// One stretch of an interpolating "..." or heredoc body: plain text, an
+// escape, or a #{...}. Stops before a '"' and at end of line.
+fn ruby_dquote_run() {
+    if /[^"\\#]+/ {}
+    yield string;
+    if /\\./ { yield constant.character.escape; }
+    else if /#\{/ { ruby_interpolation(); }
+    else if /#/ { yield string; }
+}
+
+// Runs after "#{" is consumed.
+fn ruby_interpolation() {
+    yield constant.character.escape;
+    ruby_braced();
+    yield constant.character.escape;
+}
+
+// Ruby code up to and including the "}" matching an already-consumed "{".
+fn ruby_braced() {
+    loop {
+        yield other;
+        if /\}/ { return; }
+        else if /\{/ { ruby_braced(); }
+        else if /$/ { await input; }
+        else { ruby_token(); }
+    }
+}
+
+fn ruby_block_params() {
+    if /\s*\|/ {
+        yield other;
+        if /[^|]*/ {}
+        yield variable;
+        if /\|/ {}
+    }
+}
+
+// Percent literals nest their own delimiter pair: %r{\d{3}}, %w(a (b) c).
+fn ruby_pct_bracket() {
+    loop {
+        if /[^\[\]\\]+/ {}
+        yield string;
+        if /\\./ {}
+        else if /\[/ { ruby_pct_bracket(); }
+        else if /\]/ { yield string; return; }
+        else { await input; }
+    }
+}
+
+fn ruby_pct_paren() {
+    loop {
+        if /[^()\\]+/ {}
+        yield string;
+        if /\\./ {}
+        else if /\(/ { ruby_pct_paren(); }
+        else if /\)/ { yield string; return; }
+        else { await input; }
+    }
+}
+
+fn ruby_pct_brace() {
+    loop {
+        if /[^{}\\]+/ {}
+        yield string;
+        if /\\./ {}
+        else if /\{/ { ruby_pct_brace(); }
+        else if /\}/ { yield string; return; }
+        else { await input; }
+    }
+}
+
+fn ruby_pct_angle() {
+    loop {
+        if /[^<>\\]+/ {}
+        yield string;
+        if /\\./ {}
+        else if /</ { ruby_pct_angle(); }
+        else if />/ { yield string; return; }
+        else { await input; }
     }
 }

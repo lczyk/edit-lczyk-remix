@@ -73,7 +73,11 @@
 {"line":12,"kind":"string","text":"\"site-nav "}
 {"line":12,"kind":"keyword.other","text":"<%="}
 {"line":12,"kind":"other","text":" "}
-{"line":12,"kind":"string","text":"\"nav--#{current_theme}\""}
+{"line":12,"kind":"string","text":"\"nav--"}
+{"line":12,"kind":"constant.character.escape","text":"#{"}
+{"line":12,"kind":"other","text":"current_theme"}
+{"line":12,"kind":"constant.character.escape","text":"}"}
+{"line":12,"kind":"string","text":"\""}
 {"line":12,"kind":"other","text":" "}
 {"line":12,"kind":"keyword.other","text":"%>"}
 {"line":12,"kind":"string","text":"\""}
@@ -121,7 +125,12 @@
 {"line":23,"kind":"other","text":"        "}
 {"line":23,"kind":"variable","text":"@greeting"}
 {"line":23,"kind":"other","text":" = "}
-{"line":23,"kind":"string","text":"\"hello, #{@user.name}\""}
+{"line":23,"kind":"string","text":"\"hello, "}
+{"line":23,"kind":"constant.character.escape","text":"#{"}
+{"line":23,"kind":"variable","text":"@user"}
+{"line":23,"kind":"other","text":".name"}
+{"line":23,"kind":"constant.character.escape","text":"}"}
+{"line":23,"kind":"string","text":"\""}
 {"line":24,"kind":"other","text":"        "}
 {"line":24,"kind":"variable","text":"@count"}
 {"line":24,"kind":"other","text":" = "}
@@ -184,7 +193,9 @@
 {"line":32,"kind":"variable","text":"@items"}
 {"line":32,"kind":"other","text":".each "}
 {"line":32,"kind":"keyword.control","text":"do"}
-{"line":32,"kind":"other","text":" |item| "}
+{"line":32,"kind":"other","text":" |"}
+{"line":32,"kind":"variable","text":"item"}
+{"line":32,"kind":"other","text":"| "}
 {"line":32,"kind":"keyword.other","text":"%>"}
 {"line":33,"kind":"other","text":"            <"}
 {"line":33,"kind":"constant.language","text":"li"}
@@ -214,10 +225,14 @@
 {"line":34,"kind":"other","text":" link_to item.name, "}
 {"line":34,"kind":"method","text":"item_path"}
 {"line":34,"kind":"other","text":"(item), "}
-{"line":34,"kind":"keyword.control","text":"class"}
-{"line":34,"kind":"other","text":": "}
+{"line":34,"kind":"constant.language","text":"class:"}
+{"line":34,"kind":"other","text":" "}
 {"line":34,"kind":"string","text":"\"item-link\""}
-{"line":34,"kind":"other","text":", data: { turbo: "}
+{"line":34,"kind":"other","text":", "}
+{"line":34,"kind":"constant.language","text":"data:"}
+{"line":34,"kind":"other","text":" { "}
+{"line":34,"kind":"constant.language","text":"turbo:"}
+{"line":34,"kind":"other","text":" "}
 {"line":34,"kind":"constant.language","text":"true"}
 {"line":34,"kind":"other","text":" } "}
 {"line":34,"kind":"keyword.control","text":"do"}
@@ -293,11 +308,17 @@
 {"line":51,"kind":"other","text":"      >"}
 {"line":52,"kind":"other","text":"        "}
 {"line":52,"kind":"keyword.other","text":"<%="}
-{"line":52,"kind":"other","text":" form_with url: items_path, method: "}
+{"line":52,"kind":"other","text":" form_with "}
+{"line":52,"kind":"constant.language","text":"url:"}
+{"line":52,"kind":"other","text":" items_path, "}
+{"line":52,"kind":"constant.language","text":"method:"}
+{"line":52,"kind":"other","text":" "}
 {"line":52,"kind":"constant.language","text":":post"}
 {"line":52,"kind":"other","text":" "}
 {"line":52,"kind":"keyword.control","text":"do"}
-{"line":52,"kind":"other","text":" |f| "}
+{"line":52,"kind":"other","text":" |"}
+{"line":52,"kind":"variable","text":"f"}
+{"line":52,"kind":"other","text":"| "}
 {"line":52,"kind":"keyword.other","text":"%>"}
 {"line":53,"kind":"other","text":"          "}
 {"line":53,"kind":"keyword.other","text":"<%="}
@@ -310,10 +331,12 @@
 {"line":54,"kind":"other","text":" f.text_field "}
 {"line":54,"kind":"constant.language","text":":name"}
 {"line":54,"kind":"other","text":", "}
-{"line":54,"kind":"keyword.control","text":"class"}
-{"line":54,"kind":"other","text":": "}
+{"line":54,"kind":"constant.language","text":"class:"}
+{"line":54,"kind":"other","text":" "}
 {"line":54,"kind":"string","text":"\"input\""}
-{"line":54,"kind":"other","text":", placeholder: "}
+{"line":54,"kind":"other","text":", "}
+{"line":54,"kind":"constant.language","text":"placeholder:"}
+{"line":54,"kind":"other","text":" "}
 {"line":54,"kind":"string","text":"\"New item\""}
 {"line":54,"kind":"other","text":" "}
 {"line":54,"kind":"keyword.other","text":"%>"}
@@ -345,7 +368,7 @@
 {"line":61,"kind":"other","text":" "}
 {"line":61,"kind":"keyword.other","text":"<%="}
 {"line":61,"kind":"other","text":" "}
-{"line":61,"kind":"constant.language","text":"Time"}
+{"line":61,"kind":"storage.type","text":"Time"}
 {"line":61,"kind":"other","text":".current.year "}
 {"line":61,"kind":"keyword.other","text":"%>"}
 {"line":61,"kind":"other","text":" Kitchen Sink Inc.</"}
