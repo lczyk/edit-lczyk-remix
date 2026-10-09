@@ -409,6 +409,24 @@ impl<'pa, 'ps, 'pc> Runtime<'pa, 'ps, 'pc> {
                             self.state.vm.registers.pc = tgt;
                         }
                     }
+                    JumpIfMatchPrefixBounded { idx, tgt } => {
+                        let off = self.state.vm.registers.off as usize;
+                        let str = self.strings[idx as usize].as_bytes();
+
+                        if Self::inlined_memcmp(line, off, str) && !Self::word_byte_at(line, off + str.len()) {
+                            self.state.vm.registers.off = (off + str.len()) as u32;
+                            self.state.vm.registers.pc = tgt;
+                        }
+                    }
+                    JumpIfMatchPrefixInsensitiveBounded { idx, tgt } => {
+                        let off = self.state.vm.registers.off as usize;
+                        let str = self.strings[idx as usize].as_bytes();
+
+                        if Self::inlined_memicmp(line, off, str) && !Self::word_byte_at(line, off + str.len()) {
+                            self.state.vm.registers.off = (off + str.len()) as u32;
+                            self.state.vm.registers.pc = tgt;
+                        }
+                    }
 
                     _ => unreachable!(),
                 });
@@ -685,6 +703,24 @@ impl<'pa, 'ps, 'pc> Runtime<'pa, 'ps, 'pc> {
                         self.state.vm.registers.pc = tgt;
                     }
                 }
+                JumpIfMatchPrefixBounded { idx, tgt } => {
+                    let off = self.state.vm.registers.off as usize;
+                    let str = self.strings[idx as usize].as_bytes();
+
+                    if Self::inlined_memcmp(line, off, str) && !Self::word_byte_at(line, off + str.len()) {
+                        self.state.vm.registers.off = (off + str.len()) as u32;
+                        self.state.vm.registers.pc = tgt;
+                    }
+                }
+                JumpIfMatchPrefixInsensitiveBounded { idx, tgt } => {
+                    let off = self.state.vm.registers.off as usize;
+                    let str = self.strings[idx as usize].as_bytes();
+
+                    if Self::inlined_memicmp(line, off, str) && !Self::word_byte_at(line, off + str.len()) {
+                        self.state.vm.registers.off = (off + str.len()) as u32;
+                        self.state.vm.registers.pc = tgt;
+                    }
+                }
 
                 _ => unreachable!(),
             });
@@ -774,6 +810,14 @@ impl<'pa, 'ps, 'pc> Runtime<'pa, 'ps, 'pc> {
         }
     }
 
+    /// The byte after a bounded prefix must not be one of these: the regex
+    /// compiler's `\w`, with the UTF-8 leading bytes it includes so a
+    /// multi-byte identifier is not split.
+    #[inline]
+    fn word_byte_at(haystack: &[u8], at: usize) -> bool {
+        haystack.get(at).is_some_and(|&b| is_word_byte(b))
+    }
+
     #[inline]
     fn in_set(bitmap: &[u16; 16], byte: u8) -> bool {
         let lo_nibble = byte & 0xf;
@@ -784,6 +828,12 @@ impl<'pa, 'ps, 'pc> Runtime<'pa, 'ps, 'pc> {
 
         (bitset & bitmask) != 0
     }
+}
+
+/// `\w` as the regex compiler defines it: ASCII word bytes plus the UTF-8
+/// leading bytes, so `\w+` and a bounded prefix agree on where a word ends.
+pub const fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || (b >= 0xC2 && b <= 0xF4)
 }
 
 #[repr(u8)]
@@ -980,6 +1030,13 @@ pub enum Instruction {
     // Jumps to `tgt` if the remembered span is a non-empty prefix of the
     // input at `off`, consuming it.
     JumpIfMatchSaved { tgt: u32 },
+
+    // The prefix jumps with `\>` folded in: the match only counts when the
+    // byte after it is not a word byte, so a keyword is not taken for the
+    // start of a longer identifier. One instruction per alternative of a
+    // keyword list rather than three.
+    JumpIfMatchPrefixBounded { idx: u32, tgt: u32 },
+    JumpIfMatchPrefixInsensitiveBounded { idx: u32, tgt: u32 },
 }
 
 macro_rules! instruction_decode {
@@ -1013,6 +1070,8 @@ macro_rules! instruction_decode {
 
         SaveSpan { $ss_start:ident, $ss_end:ident } => $ss_handler:block
         JumpIfMatchSaved { $jms_tgt:ident } => $jms_handler:block
+        JumpIfMatchPrefixBounded { $jpb_idx:ident, $jpb_tgt:ident } => $jpb_handler:block
+        JumpIfMatchPrefixInsensitiveBounded { $jpib_idx:ident, $jpib_tgt:ident } => $jpib_handler:block
 
         _ => $bad_opcode:expr $(,)?
     }) => {{
@@ -1202,6 +1261,20 @@ macro_rules! instruction_decode {
                 let $jms_tgt = dec_u32(__asm, __off + 1);
                 $jms_handler
             }
+            23 => {
+                // JumpIfMatchPrefixBounded
+                $pc += 9;
+                let $jpb_idx = dec_u32(__asm, __off + 1);
+                let $jpb_tgt = dec_u32(__asm, __off + 5);
+                $jpb_handler
+            }
+            24 => {
+                // JumpIfMatchPrefixInsensitiveBounded
+                $pc += 9;
+                let $jpib_idx = dec_u32(__asm, __off + 1);
+                let $jpib_tgt = dec_u32(__asm, __off + 5);
+                $jpib_handler
+            }
 
             _ => $bad_opcode,
         }
@@ -1233,7 +1306,9 @@ impl Instruction {
 
             Instruction::JumpIfMatchCharset { .. } => Some(1 + 3 * 4), // opcode + idx + min + max
             Instruction::JumpIfMatchPrefix { .. }
-            | Instruction::JumpIfMatchPrefixInsensitive { .. } => Some(1 + 4), // opcode + idx
+            | Instruction::JumpIfMatchPrefixInsensitive { .. }
+            | Instruction::JumpIfMatchPrefixBounded { .. }
+            | Instruction::JumpIfMatchPrefixInsensitiveBounded { .. } => Some(1 + 4), // opcode + idx
 
             Instruction::JumpIfMatchSaved { .. } => Some(1), // opcode
 
@@ -1297,7 +1372,9 @@ impl Instruction {
                 bytes.extend_from_slice(arena, &enc_u32(tgt));
             }
             Instruction::JumpIfMatchPrefix { idx, tgt }
-            | Instruction::JumpIfMatchPrefixInsensitive { idx, tgt } => {
+            | Instruction::JumpIfMatchPrefixInsensitive { idx, tgt }
+            | Instruction::JumpIfMatchPrefixBounded { idx, tgt }
+            | Instruction::JumpIfMatchPrefixInsensitiveBounded { idx, tgt } => {
                 bytes.extend_from_slice(arena, &enc_u32(idx));
                 bytes.extend_from_slice(arena, &enc_u32(tgt));
             }
@@ -1391,6 +1468,12 @@ impl Instruction {
             }
             JumpIfMatchSaved { tgt } => {
                 Instruction::JumpIfMatchSaved { tgt }
+            }
+            JumpIfMatchPrefixBounded { idx, tgt } => {
+                Instruction::JumpIfMatchPrefixBounded { idx, tgt }
+            }
+            JumpIfMatchPrefixInsensitiveBounded { idx, tgt } => {
+                Instruction::JumpIfMatchPrefixInsensitiveBounded { idx, tgt }
             }
             _ => return (None, 1),
         });
@@ -1513,6 +1596,12 @@ impl Instruction {
             }
             Instruction::JumpIfMatchSaved { tgt } => {
                 arena_write_fmt!(arena, str, "{_i}jsv{i_}    {_a}{tgt}{a_}");
+            }
+            Instruction::JumpIfMatchPrefixBounded { idx, tgt } => {
+                arena_write_fmt!(arena, str, "{_i}jpb{i_}    {_n}{idx}{n_}, {_a}{tgt}{a_}");
+            }
+            Instruction::JumpIfMatchPrefixInsensitiveBounded { idx, tgt } => {
+                arena_write_fmt!(arena, str, "{_i}jpib{i_}   {_n}{idx}{n_}, {_a}{tgt}{a_}");
             }
         }
 
@@ -1922,6 +2011,93 @@ mod tests {
                 ("keyword".to_string(), "ab".to_string()),
                 ("other".to_string(), " ".to_string()),
                 ("comment".to_string(), "#".to_string()),
+            ]
+        );
+    }
+
+    /// An alternative that matched is given up when what follows it fails,
+    /// and the next alternative is tried from the same offset. `in` matches
+    /// the start of `invariant`, the `\>` fails, and `invariant` is the one
+    /// that has to colour the word -- whatever order the list is in.
+    #[test]
+    fn an_alternative_is_retried_when_what_follows_it_fails() {
+        let src = "#[display_name = \"T\"]\n\
+                   #[path = \"**/*.t\"]\n\
+                   pub fn t() {\n\
+                       until /$/ {\n\
+                           yield other;\n\
+                           if /(?:in|invariant)\\>/ { yield keyword; }\n\
+                           else if /\\w+/ {}\n\
+                       }\n\
+                   }\n";
+
+        let spans = highlight(src, &["invariant in inv"]);
+        assert_eq!(
+            spans[0],
+            [
+                ("keyword".to_string(), "invariant".to_string()),
+                ("other".to_string(), " ".to_string()),
+                ("keyword".to_string(), "in".to_string()),
+                ("other".to_string(), " inv".to_string()),
+            ]
+        );
+    }
+
+    /// The same retry through a capturing group: the capture is the
+    /// alternative that made the whole pattern match, and a group after the
+    /// alternation is numbered once however many alternatives it follows.
+    #[test]
+    fn a_retried_alternative_keeps_its_captures_straight() {
+        let src = "#[display_name = \"T\"]\n\
+                   #[path = \"**/*.t\"]\n\
+                   pub fn t() {\n\
+                       until /$/ {\n\
+                           yield other;\n\
+                           if /(BEGIN|BEGINFILE)\\>\\s*(\\w+)/ {\n\
+                               yield $1 as keyword;\n\
+                               yield other;\n\
+                               yield $2 as string;\n\
+                           }\n\
+                           else if /\\w+/ {}\n\
+                       }\n\
+                   }\n";
+
+        let spans = highlight(src, &["BEGINFILE x BEGIN y"]);
+        assert_eq!(
+            spans[0],
+            [
+                ("keyword".to_string(), "BEGINFILE".to_string()),
+                ("other".to_string(), " ".to_string()),
+                ("string".to_string(), "x".to_string()),
+                ("other".to_string(), " ".to_string()),
+                ("keyword".to_string(), "BEGIN".to_string()),
+                ("other".to_string(), " ".to_string()),
+                ("string".to_string(), "y".to_string()),
+            ]
+        );
+    }
+
+    /// The folded form of a keyword list, case-insensitive: the `\>` is part
+    /// of the prefix check, so a prefix of a longer word is not a match.
+    #[test]
+    fn a_bounded_keyword_list_is_not_fooled_by_a_longer_word() {
+        let src = "#[display_name = \"T\"]\n\
+                   #[path = \"**/*.t\"]\n\
+                   pub fn t() {\n\
+                       until /$/ {\n\
+                           yield other;\n\
+                           if /(?i:(?:x|xy))\\>/ { yield keyword; }\n\
+                           else if /\\w+/ {}\n\
+                       }\n\
+                   }\n";
+
+        let spans = highlight(src, &["XY xz X"]);
+        assert_eq!(
+            spans[0],
+            [
+                ("keyword".to_string(), "XY".to_string()),
+                ("other".to_string(), " xz ".to_string()),
+                ("keyword".to_string(), "X".to_string()),
             ]
         );
     }

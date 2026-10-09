@@ -70,7 +70,9 @@
 {"line":29,"kind":"other","text":" (qty > "}
 {"line":29,"kind":"constant.numeric","text":"100"}
 {"line":29,"kind":"other","text":") {"}
-{"line":30,"kind":"other","text":"        printf "}
+{"line":30,"kind":"other","text":"        "}
+{"line":30,"kind":"keyword.other","text":"printf"}
+{"line":30,"kind":"other","text":" "}
 {"line":30,"kind":"string","text":"\"bulk: %s x%d @%s\\n\""}
 {"line":30,"kind":"other","text":", name, qty, "}
 {"line":30,"kind":"method","text":"fmt"}
@@ -78,7 +80,9 @@
 {"line":31,"kind":"other","text":"    } "}
 {"line":31,"kind":"keyword.control","text":"else"}
 {"line":31,"kind":"other","text":" {"}
-{"line":32,"kind":"other","text":"        printf "}
+{"line":32,"kind":"other","text":"        "}
+{"line":32,"kind":"keyword.other","text":"printf"}
+{"line":32,"kind":"other","text":" "}
 {"line":32,"kind":"string","text":"\"%s\\t%d\\t%s\\n\""}
 {"line":32,"kind":"other","text":", name, qty, "}
 {"line":32,"kind":"method","text":"fmt"}
@@ -96,7 +100,9 @@
 {"line":38,"kind":"keyword.other","text":"print"}
 {"line":38,"kind":"other","text":" k, items[k]"}
 {"line":39,"kind":"other","text":"    }"}
-{"line":40,"kind":"other","text":"    printf "}
+{"line":40,"kind":"other","text":"    "}
+{"line":40,"kind":"keyword.other","text":"printf"}
+{"line":40,"kind":"other","text":" "}
 {"line":40,"kind":"string","text":"\"total %d records, sum=%s\\n\""}
 {"line":40,"kind":"other","text":", count, "}
 {"line":40,"kind":"method","text":"fmt"}

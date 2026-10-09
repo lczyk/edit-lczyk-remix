@@ -101,7 +101,7 @@
 \x1b[94mdelete\x1b[m obj.a;
 \x1b[94mtypeof\x1b[m obj;
 \x1b[94mvoid\x1b[m \x1b[92m0\x1b[m;
-\x1b[91m"a"\x1b[m instanceof Object;
+\x1b[91m"a"\x1b[m \x1b[94minstanceof\x1b[m Object;
 \x1b[91m"a"\x1b[m \x1b[94min\x1b[m obj;
 
 \x1b[94mimport\x1b[m { readFile } from \x1b[91m"fs"\x1b[m;

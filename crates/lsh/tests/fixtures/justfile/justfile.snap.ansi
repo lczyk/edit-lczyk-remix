@@ -6,7 +6,7 @@
 
 \x1b[96mtarget\x1b[m := \x1b[91m"release"\x1b[m
 \x1b[96mfeatures\x1b[m := \x1b[91m"default"\x1b[m
-\x1b[96msrc_dir\x1b[m := justfile_directory() / \x1b[91m"src"\x1b[m
+\x1b[96msrc_dir\x1b[m := \x1b[94mjustfile_directory\x1b[m() / \x1b[91m"src"\x1b[m
 
 \x1b[95malias\x1b[m b := build
 \x1b[95malias\x1b[m t := test

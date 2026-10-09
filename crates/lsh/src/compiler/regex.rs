@@ -37,6 +37,13 @@
 //!   This isn't Unicode-correct but works for identifiers in most programming languages.
 //! - We don't create loops to keep the IR generation and optimization simple.
 //!   This means that e.g. (a|b)+ is not supported. For now that's fine.
+//! - An alternation backtracks through the zero-width assertions after it:
+//!   when the `\>` or `$` following a matched alternative fails, the next
+//!   alternative is tried from the same offset, so `(?:in|invariant)\>` matches
+//!   `invariant`. Those assertions are emitted once per alternative to get
+//!   there (see `Cont`); the consuming rest of the pattern is shared, and a
+//!   failure in it still fails the whole pattern. `(?:a|ab)c` on `abc` does
+//!   not match.
 //! - The `parse()` function wires its generated IR into the provided destination nodes.
 //!   Don't pass nodes that are already part of the IR graph.
 
@@ -505,6 +512,37 @@ impl<'a> RegexParser<'a> {
     }
 }
 
+/// What matching the rest of a pattern means. A node already in the graph,
+/// or parts still to emit, each followed by the continuation after them.
+///
+/// The recipe form is what lets an alternation see what follows it: an
+/// alternative emits its own copy of the zero-width assertions ahead, with
+/// their failure wired to the next alternative, before joining the shared
+/// rest. A node form could only be shared, and a failure after it could only
+/// fail the whole pattern.
+#[derive(Clone, Copy)]
+enum Cont<'r, 'a> {
+    Node(IRCell<'a>),
+    Then {
+        parts: &'r [Regex],
+        then: &'r Cont<'r, 'a>,
+    },
+    /// Record the end of a capturing group, then carry on.
+    CaptureEnd {
+        end: IRRegCell<'a>,
+        then: &'r Cont<'r, 'a>,
+    },
+}
+
+/// A zero-width step at the front of a continuation, cheap enough to emit
+/// once per alternative.
+#[derive(Clone, Copy)]
+enum ZeroWidth<'a> {
+    CaptureEnd(IRRegCell<'a>),
+    WordEnd,
+    EndOfLine,
+}
+
 struct CodeGen<'a, 'c> {
     compiler: &'c mut Compiler<'a>,
     captures: CaptureList<'a>,
@@ -519,32 +557,135 @@ impl<'a, 'c> CodeGen<'a, 'c> {
     }
 
     fn generate(&mut self, regex: &Regex) -> Result<IRCell<'a>, String> {
-        self.emit(regex, self.dst_good, self.dst_bad)
+        self.emit(regex, Cont::Node(self.dst_good), self.dst_bad)
+    }
+
+    /// Turn a continuation into the node that starts it. A recipe is emitted
+    /// here, with `on_fail` as what its failure leads to.
+    fn materialise<'r>(
+        &mut self,
+        cont: Cont<'r, 'a>,
+        on_fail: IRCell<'a>,
+    ) -> Result<IRCell<'a>, String> {
+        match cont {
+            Cont::Node(node) => Ok(node),
+            Cont::Then { parts, then } => self.emit_parts(parts, *then, on_fail),
+            Cont::CaptureEnd { end, then } => {
+                let off_reg = self.compiler.get_reg(Register::InputOffset);
+                let next = self.materialise(*then, on_fail)?;
+                let save_end = self.compiler.alloc_iri(IRI::Mov { dst: end, src: off_reg });
+                save_end.borrow_mut().next = Some(next);
+                Ok(save_end)
+            }
+        }
+    }
+
+    /// Split a continuation into the zero-width steps at its front and the
+    /// node that starts the consuming rest, which is emitted here once with
+    /// `on_fail` as its failure.
+    fn freeze<'r>(
+        &mut self,
+        cont: Cont<'r, 'a>,
+        on_fail: IRCell<'a>,
+        front: &mut Vec<ZeroWidth<'a>>,
+    ) -> Result<IRCell<'a>, String> {
+        match cont {
+            Cont::Node(node) => Ok(node),
+            Cont::CaptureEnd { end, then } => {
+                front.push(ZeroWidth::CaptureEnd(end));
+                self.freeze(*then, on_fail, front)
+            }
+            Cont::Then { parts, then } => {
+                let mut i = 0;
+                while i < parts.len() {
+                    match parts[i] {
+                        Regex::Empty => {}
+                        Regex::WordEnd => front.push(ZeroWidth::WordEnd),
+                        Regex::EndOfLine => front.push(ZeroWidth::EndOfLine),
+                        _ => break,
+                    }
+                    i += 1;
+                }
+                if i == parts.len() {
+                    self.freeze(*then, on_fail, front)
+                } else {
+                    self.emit_parts(&parts[i..], *then, on_fail)
+                }
+            }
+        }
+    }
+
+    /// One zero-width step in front of `next`, failing to `on_fail`.
+    fn emit_zero_width(
+        &mut self,
+        step: ZeroWidth<'a>,
+        next: IRCell<'a>,
+        on_fail: IRCell<'a>,
+    ) -> Result<IRCell<'a>, String> {
+        match step {
+            ZeroWidth::CaptureEnd(end) => {
+                let off_reg = self.compiler.get_reg(Register::InputOffset);
+                let save_end = self.compiler.alloc_iri(IRI::Mov { dst: end, src: off_reg });
+                save_end.borrow_mut().next = Some(next);
+                Ok(save_end)
+            }
+            ZeroWidth::WordEnd => self.emit_charset(&ASCII_WORD_CHARSET, 1, 1, on_fail, next),
+            ZeroWidth::EndOfLine => {
+                let if_node = self
+                    .compiler
+                    .alloc_iri(IRI::If { condition: Condition::EndOfLine, then: next });
+                if_node.borrow_mut().next = Some(on_fail);
+                Ok(if_node)
+            }
+        }
+    }
+
+    /// `parts` in sequence, then `cont`. The first part is emitted with the
+    /// rest as its continuation, so the chain is built front to back and each
+    /// part's failure is `on_fail`.
+    fn emit_parts<'r>(
+        &mut self,
+        parts: &'r [Regex],
+        cont: Cont<'r, 'a>,
+        on_fail: IRCell<'a>,
+    ) -> Result<IRCell<'a>, String> {
+        match parts.split_first() {
+            None => self.materialise(cont, on_fail),
+            Some((first, rest)) => {
+                let then = Cont::Then { parts: rest, then: &cont };
+                self.emit(first, then, on_fail)
+            }
+        }
     }
 
     /// Core emission function. Returns the entry node for matching `regex`.
     ///
     /// The generated IR forms a DAG where:
-    /// - Matching the pattern leads to `on_match`
+    /// - Matching the pattern leads to `cont`
     /// - Failing to match leads to `on_fail`
     ///
     /// For `IRI::If` nodes: `then` = match branch, `next` = fail branch.
-    fn emit(
+    fn emit<'r>(
         &mut self,
-        regex: &Regex,
-        on_match: IRCell<'a>,
+        regex: &'r Regex,
+        cont: Cont<'r, 'a>,
         on_fail: IRCell<'a>,
     ) -> Result<IRCell<'a>, String> {
         match regex {
-            Regex::Empty => Ok(on_match),
+            Regex::Empty => self.materialise(cont, on_fail),
 
             Regex::Literal(s, case_insensitive) => {
-                self.emit_literal(s, *case_insensitive, on_match, on_fail)
+                let on_match = self.materialise(cont, on_fail)?;
+                self.emit_literal(s, *case_insensitive, false, on_match, on_fail)
             }
 
-            Regex::CharClass(cs) => self.emit_charset(cs, 1, 1, on_match, on_fail),
+            Regex::CharClass(cs) => {
+                let on_match = self.materialise(cont, on_fail)?;
+                self.emit_charset(cs, 1, 1, on_match, on_fail)
+            }
 
             Regex::Dot => {
+                let on_match = self.materialise(cont, on_fail)?;
                 let dst = self.compiler.get_reg(Register::InputOffset);
                 let node = self.compiler.alloc_iri(IRI::AddImm { dst, imm: 1 });
                 node.borrow_mut().next = Some(on_match);
@@ -552,6 +693,7 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             }
 
             Regex::EndOfLine => {
+                let on_match = self.materialise(cont, on_fail)?;
                 let if_node = self
                     .compiler
                     .alloc_iri(IRI::If { condition: Condition::EndOfLine, then: on_match });
@@ -562,29 +704,41 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             Regex::WordEnd => {
                 // \> is a zero-width assertion: succeeds if NOT followed by a word char.
                 // We invert the logic: check for word char, swap success/failure branches.
+                let on_match = self.materialise(cont, on_fail)?;
                 self.emit_charset(&ASCII_WORD_CHARSET, 1, 1, on_fail, on_match)
             }
 
-            Regex::Concat(parts) => {
-                let mut current_target = on_match;
-
-                // We iterate in reverse because of continuation-passing style,
-                // as explained in the module doc.
-                for part in parts.iter().rev() {
-                    current_target = self.emit(part, current_target, on_fail)?;
-                }
-
-                Ok(current_target)
-            }
+            Regex::Concat(parts) => self.emit_parts(parts, cont, on_fail),
 
             Regex::Alt(alts) => {
-                // Save the input offset at Alt entry so each alt can rewind
-                // on failure (alternation backtracking). Without this, a
-                // Concat alt like `0[xX]` that partially matches (consumes
-                // `0`) before failing would leave the next alt starting at
-                // the wrong offset, breaking patterns such as `0[xX]|0[bB]`.
+                // Save the input offset at Alt entry so each alt can rewind on
+                // failure. The zero-width assertions after the alternation
+                // are emitted per alternative with the rewind as their
+                // failure, so `\>` failing is what tries the next alternative;
+                // the consuming rest is shared, which keeps the backup
+                // register's life short and the IR small.
                 let off_reg = self.compiler.get_reg(Register::InputOffset);
                 let save_reg = self.compiler.alloc_vreg();
+
+                let mut front = Vec::new();
+                let mut shared = self.freeze(cont, on_fail, &mut front)?;
+
+                // Capture ends are register writes that cannot fail, so they
+                // sit once in the shared tail whatever the alternative; only
+                // the assertions are emitted per alternative. The order among
+                // zero-width steps does not matter: none of them moves `off`.
+                for &step in front.iter().rev() {
+                    if let ZeroWidth::CaptureEnd(_) = step {
+                        shared = self.emit_zero_width(step, shared, on_fail)?;
+                    }
+                }
+                front.retain(|step| !matches!(step, ZeroWidth::CaptureEnd(_)));
+
+                // The common shape, a keyword list: a literal alternative and
+                // the `\>` after it go into one instruction, which fails
+                // without moving the offset, so the restore after it is dead
+                // and the optimizer drops it.
+                let bounded = matches!(front[..], [ZeroWidth::WordEnd]);
 
                 let mut current_fail = on_fail;
 
@@ -593,7 +747,16 @@ impl<'a, 'c> CodeGen<'a, 'c> {
                 for alt in alts.iter().rev() {
                     let restore = self.compiler.alloc_iri(IRI::Mov { dst: off_reg, src: save_reg });
                     restore.borrow_mut().next = Some(current_fail);
-                    current_fail = self.emit(alt, on_match, restore)?;
+                    if bounded && let Regex::Literal(s, case_insensitive) = alt {
+                        current_fail =
+                            self.emit_literal(s, *case_insensitive, true, shared, restore)?;
+                        continue;
+                    }
+                    let mut tail = shared;
+                    for &step in front.iter().rev() {
+                        tail = self.emit_zero_width(step, tail, restore)?;
+                    }
+                    current_fail = self.emit(alt, Cont::Node(tail), restore)?;
                 }
 
                 let save = self.compiler.alloc_iri(IRI::Mov { dst: save_reg, src: off_reg });
@@ -602,6 +765,7 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             }
 
             Regex::Repeat { inner, min, max } => {
+                let on_match = self.materialise(cont, on_fail)?;
                 self.emit_repeat(inner, *min, *max, on_match, on_fail)
             }
 
@@ -613,10 +777,8 @@ impl<'a, 'c> CodeGen<'a, 'c> {
                     let end_reg = self.compiler.alloc_vreg();
 
                     let off_reg = self.compiler.get_reg(Register::InputOffset);
-                    let save_end = self.compiler.alloc_iri(IRI::Mov { dst: end_reg, src: off_reg });
-                    save_end.borrow_mut().next = Some(on_match);
-
-                    let inner_node = self.emit(inner, save_end, on_fail)?;
+                    let then = Cont::CaptureEnd { end: end_reg, then: &cont };
+                    let inner_node = self.emit(inner, then, on_fail)?;
 
                     // Push *after* emit, so nested groups come first in the reversed list.
                     self.captures.push(self.compiler.arena, (start_reg, end_reg));
@@ -627,7 +789,7 @@ impl<'a, 'c> CodeGen<'a, 'c> {
 
                     Ok(save_start)
                 } else {
-                    self.emit(inner, on_match, on_fail)
+                    self.emit(inner, cont, on_fail)
                 }
             }
         }
@@ -674,7 +836,7 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             // It can be trivially translated to a Prefix/PrefixInsensitive check
             // where even on_fail is a success and is thus connected to on_match.
             if min == 0 && max == 1 {
-                return self.emit(inner, on_match, on_match);
+                return self.emit(inner, Cont::Node(on_match), on_match);
             }
 
             // Otherwise, we must translate to a Charset match.
@@ -703,24 +865,30 @@ impl<'a, 'c> CodeGen<'a, 'c> {
         let mut current = on_match;
         // Optional: Both branches succeed go to `current`.
         for _ in min..max {
-            current = self.emit(inner, current, current)?;
+            current = self.emit(inner, Cont::Node(current), current)?;
         }
         // Required: Failure goes to `on_fail`.
         for _ in 0..min {
-            current = self.emit(inner, current, on_fail)?;
+            current = self.emit(inner, Cont::Node(current), on_fail)?;
         }
         Ok(current)
     }
 
+    /// `bounded` folds a following `\>` into the check.
     fn emit_literal(
         &mut self,
         s: &str,
         case_insensitive: bool,
+        bounded: bool,
         on_match: IRCell<'a>,
         on_fail: IRCell<'a>,
     ) -> Result<IRCell<'a>, String> {
         if s.is_empty() {
-            return Ok(on_match);
+            return if bounded {
+                self.emit_charset(&ASCII_WORD_CHARSET, 1, 1, on_fail, on_match)
+            } else {
+                Ok(on_match)
+            };
         }
         // PrefixInsensitive needle must be ASCII-lowercase: the runtime
         // lowercases each haystack byte and compares against the needle as-is.
@@ -732,8 +900,12 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             s
         };
         let s = self.compiler.intern_string(needle);
-        let condition =
-            if case_insensitive { Condition::PrefixInsensitive(s) } else { Condition::Prefix(s) };
+        let condition = match (case_insensitive, bounded) {
+            (false, false) => Condition::Prefix(s),
+            (true, false) => Condition::PrefixInsensitive(s),
+            (false, true) => Condition::PrefixBounded(s),
+            (true, true) => Condition::PrefixInsensitiveBounded(s),
+        };
         let if_node = self.compiler.alloc_iri(IRI::If { condition, then: on_match });
         if_node.borrow_mut().next = Some(on_fail);
         Ok(if_node)
@@ -772,7 +944,7 @@ impl<'a, 'c> CodeGen<'a, 'c> {
             if count > 0 && cs.covers_none() {
                 for &(ch, insensitive) in chars[..count].iter().rev() {
                     let s = unsafe { str::from_utf8_unchecked(slice::from_ref(&ch)) };
-                    let node = self.emit_literal(s, insensitive, on_match, next)?;
+                    let node = self.emit_literal(s, insensitive, false, on_match, next)?;
                     next = node;
                 }
                 return Ok(next);

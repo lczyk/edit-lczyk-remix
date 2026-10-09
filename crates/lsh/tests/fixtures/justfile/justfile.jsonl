@@ -19,7 +19,9 @@
 {"line":8,"kind":"other","text":" := "}
 {"line":8,"kind":"string","text":"\"default\""}
 {"line":9,"kind":"variable","text":"src_dir"}
-{"line":9,"kind":"other","text":" := justfile_directory() / "}
+{"line":9,"kind":"other","text":" := "}
+{"line":9,"kind":"keyword.other","text":"justfile_directory"}
+{"line":9,"kind":"other","text":"() / "}
 {"line":9,"kind":"string","text":"\"src\""}
 {"line":11,"kind":"keyword.control","text":"alias"}
 {"line":11,"kind":"other","text":" b := build"}

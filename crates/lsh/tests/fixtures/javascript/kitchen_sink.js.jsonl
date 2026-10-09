@@ -238,7 +238,9 @@
 {"line":103,"kind":"constant.numeric","text":"0"}
 {"line":103,"kind":"other","text":";"}
 {"line":104,"kind":"string","text":"\"a\""}
-{"line":104,"kind":"other","text":" instanceof Object;"}
+{"line":104,"kind":"other","text":" "}
+{"line":104,"kind":"keyword.other","text":"instanceof"}
+{"line":104,"kind":"other","text":" Object;"}
 {"line":105,"kind":"string","text":"\"a\""}
 {"line":105,"kind":"other","text":" "}
 {"line":105,"kind":"keyword.other","text":"in"}

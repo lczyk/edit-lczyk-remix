@@ -184,10 +184,17 @@ impl<'a> Compiler<'a> {
                     Condition::Charset { cs, .. } => {
                         charset.merge(cs);
                     }
-                    Condition::Prefix(s) | Condition::PrefixInsensitive(s) => {
+                    Condition::Prefix(s)
+                    | Condition::PrefixInsensitive(s)
+                    | Condition::PrefixBounded(s)
+                    | Condition::PrefixInsensitiveBounded(s) => {
                         if let Some(&b) = s.as_bytes().first() {
                             charset.set(b, true);
-                            if matches!(condition, Condition::PrefixInsensitive(_)) {
+                            if matches!(
+                                condition,
+                                Condition::PrefixInsensitive(_)
+                                    | Condition::PrefixInsensitiveBounded(_)
+                            ) {
                                 charset.set(b.to_ascii_uppercase(), true);
                                 charset.set(b.to_ascii_lowercase(), true);
                             }
@@ -294,6 +301,10 @@ impl<'a> Compiler<'a> {
                             },
                             Condition::Prefix(s) => write!(output, "match: {s}"),
                             Condition::PrefixInsensitive(s) => write!(output, "imatch: {s}"),
+                            Condition::PrefixBounded(s) => write!(output, "match: {s}\\>"),
+                            Condition::PrefixInsensitiveBounded(s) => {
+                                write!(output, "imatch: {s}\\>")
+                            }
                             Condition::Saved => write!(output, "match: $saved"),
                         };
                         _ = writeln!(output, "\"}}");
@@ -613,6 +624,9 @@ enum Condition<'a> {
     },
     Prefix(&'a str),
     PrefixInsensitive(&'a str),
+    /// `Prefix` with `\>` folded in: not followed by a word byte.
+    PrefixBounded(&'a str),
+    PrefixInsensitiveBounded(&'a str),
     /// The span remembered by `SaveSpan` is a prefix of the input here.
     Saved,
 }

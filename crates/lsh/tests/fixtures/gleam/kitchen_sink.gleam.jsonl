@@ -241,7 +241,9 @@
 {"line":69,"kind":"constant.numeric","text":"1"}
 {"line":70,"kind":"other","text":"  "}
 {"line":70,"kind":"keyword.other","text":"let"}
-{"line":70,"kind":"other","text":" assert "}
+{"line":70,"kind":"other","text":" "}
+{"line":70,"kind":"keyword.control","text":"assert"}
+{"line":70,"kind":"other","text":" "}
 {"line":70,"kind":"constant.language","text":"Ok"}
 {"line":70,"kind":"other","text":"(value) = "}
 {"line":70,"kind":"method","text":"classify"}

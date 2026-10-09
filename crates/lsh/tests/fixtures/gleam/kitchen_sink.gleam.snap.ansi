@@ -67,7 +67,7 @@
 \x1b[94mpub\x1b[m \x1b[94mfn\x1b[m \x1b[93mdiscards\x1b[m() -> \x1b[94mNil\x1b[m {
   \x1b[94mlet\x1b[m \x1b[96m_\x1b[m = \x1b[91m"wholly discarded"\x1b[m
   \x1b[94mlet\x1b[m \x1b[96m_unused\x1b[m = \x1b[92m1\x1b[m
-  \x1b[94mlet\x1b[m assert \x1b[94mOk\x1b[m(value) = \x1b[93mclassify\x1b[m(\x1b[92m1\x1b[m)
+  \x1b[94mlet\x1b[m \x1b[95massert\x1b[m \x1b[94mOk\x1b[m(value) = \x1b[93mclassify\x1b[m(\x1b[92m1\x1b[m)
   \x1b[95mecho\x1b[m value
   \x1b[94mNil\x1b[m
 }

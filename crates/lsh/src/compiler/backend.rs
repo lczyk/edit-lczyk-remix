@@ -338,6 +338,19 @@ impl<'a> Backend<'a> {
                                 let tgt = self.dst_by_node(then) as u32;
                                 self.push_instruction(JumpIfMatchPrefixInsensitive { idx, tgt });
                             }
+                            Condition::PrefixBounded(s) => {
+                                let idx = self.visit_string(s) as u32;
+                                let tgt = self.dst_by_node(then) as u32;
+                                self.push_instruction(JumpIfMatchPrefixBounded { idx, tgt });
+                            }
+                            Condition::PrefixInsensitiveBounded(s) => {
+                                let idx = self.visit_string(s) as u32;
+                                let tgt = self.dst_by_node(then) as u32;
+                                self.push_instruction(JumpIfMatchPrefixInsensitiveBounded {
+                                    idx,
+                                    tgt,
+                                });
+                            }
                             Condition::Saved => {
                                 let tgt = self.dst_by_node(then) as u32;
                                 self.push_instruction(JumpIfMatchSaved { tgt });

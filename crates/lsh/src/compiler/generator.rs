@@ -148,7 +148,9 @@ impl<'a> Generator<'a> {
                     )
                 }
                 Instruction::JumpIfMatchPrefix { idx, .. }
-                | Instruction::JumpIfMatchPrefixInsensitive { idx, .. } => {
+                | Instruction::JumpIfMatchPrefixInsensitive { idx, .. }
+                | Instruction::JumpIfMatchPrefixBounded { idx, .. }
+                | Instruction::JumpIfMatchPrefixInsensitiveBounded { idx, .. } => {
                     _ = write!(
                         output,
                         " {comment_prefix}// {:?}{comment_suffix}",
