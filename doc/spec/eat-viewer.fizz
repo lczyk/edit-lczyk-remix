@@ -49,7 +49,7 @@ action_options:
 #      differs from the buffer, THE SYSTEM SHALL show a "modified" marker.
 # R5b: WHEN the buffer is loaded, THE SYSTEM SHALL clear the "modified" marker.
 # R6:  WHEN a load is performed, THE SYSTEM SHALL keep the viewport's top row,
-#      clamped to the new buffer length.
+#      pulled back only as far as keeps the last row on the bottom edge.
 # R7:  IF the source is unavailable (file missing, command failed), THEN
 #      THE SYSTEM SHALL keep the previous buffer and show an "error" marker.
 # R7b: WHEN a load succeeds, THE SYSTEM SHALL clear the "error" marker.
@@ -66,11 +66,14 @@ action_options:
 #   marker says error, and in live mode the next tick after recovery loads.
 #
 # Model: the source is a monotonic version number; None means unavailable.
-# LEN gives the buffer length of each version so the viewport clamp is
-# exercised. version 0 is the empty buffer before the first load.
+# LEN gives the buffer length of each version and BODY the viewport height,
+# so the clamp on load is exercised both ways (shorter than the viewport,
+# and longer but shorter than the old top). version 0 is the empty buffer
+# before the first load.
 
 MAX_VERSION = 3
-LEN = {0: 1, 1: 3, 2: 1, 3: 2}
+LEN = {0: 1, 1: 5, 2: 1, 3: 3}
+BODY = 2
 
 Marker = enum('NONE', 'MODIFIED', 'ERROR')
 Act = enum('INIT', 'SOURCE_CHANGE', 'SOURCE_VANISH', 'TICK', 'PRESS_R', 'SCROLL')
@@ -133,7 +136,7 @@ atomic func load():
         return
     loads += 1
     buf = disk
-    top = min(top, LEN[buf] - 1)       # R6
+    top = min(top, max(0, LEN[buf] - BODY))   # R6
     marker = Marker.NONE               # R5b, R7b
 
 # --- properties ---------------------------------------------------------
@@ -169,7 +172,7 @@ transition assertion BufferOnlyChangesOnLoad(before, after):
 transition assertion LoadKeepsViewport(before, after):   # R6
     if after.loads == before.loads:
         return True
-    return after.top == min(before.top, LEN[after.buf] - 1)
+    return after.top == min(before.top, max(0, LEN[after.buf] - BODY))
 
 transition assertion UnavailableKeepsBuffer(before, after):   # R7
     if before.disk != None:
