@@ -421,6 +421,7 @@ pub struct TextBuffer {
     wants_scroll_delta_x: CoordType,
     wants_scroll_delta_y: CoordType,
     wants_scroll_to_tail: bool,
+    wants_scroll_bound_to_tail: bool,
 
     /// Indexed by logical line `y`. Empty means "no marks". May be shorter
     /// or longer than the current logical line count if a refresh is
@@ -508,6 +509,7 @@ impl TextBuffer {
             wants_scroll_delta_x: 0,
             wants_scroll_delta_y: 0,
             wants_scroll_to_tail: false,
+            wants_scroll_bound_to_tail: false,
 
             gutter_marks: Vec::new(),
             minimap_cells: Vec::new(),
@@ -853,6 +855,19 @@ impl TextBuffer {
     /// For the TUI code to retrieve a prior [`TextBuffer::request_scroll_to_tail()`] request.
     pub fn take_scroll_to_tail_request(&mut self) -> bool {
         mem::take(&mut self.wants_scroll_to_tail)
+    }
+
+    /// Ask the TUI system to pull the viewport back if it runs past the
+    /// last visual line, so the last line sits no higher than the bottom
+    /// edge. A no-op when it already fits. What a reload wants when the
+    /// content got shorter: the reader's place is kept where it still exists.
+    pub fn request_scroll_bound_to_tail(&mut self) {
+        self.wants_scroll_bound_to_tail = true;
+    }
+
+    /// For the TUI code to retrieve a prior [`TextBuffer::request_scroll_bound_to_tail()`] request.
+    pub fn take_scroll_bound_to_tail_request(&mut self) -> bool {
+        mem::take(&mut self.wants_scroll_bound_to_tail)
     }
 
     /// Is word-wrap enabled?

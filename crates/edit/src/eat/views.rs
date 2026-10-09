@@ -110,6 +110,7 @@ pub fn run_snapshot(
                         b.set_margin_enabled(show_numbers);
                         b.set_word_wrap(wrap);
                         b.set_read_only(true);
+                        b.request_scroll_bound_to_tail();
                     }
                     captured_stat = FileStat::from_path(&path).ok();
                     file_changed = false;
