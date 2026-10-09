@@ -54,6 +54,12 @@ pub(crate) struct Cli {
     #[argh(option, default = "WrapMode::Auto")]
     pub(crate) wrap: WrapMode,
 
+    /// live view: load the source again whenever it changes, polled every
+    /// DUR (`-w 2s`, `-w 500ms`, `-w 2` = seconds; bare `-w` is 1s, or
+    /// EAT_WATCH_INTERVAL_MS). needs a tty and one file or a command.
+    #[argh(option, short = 'w')]
+    pub(crate) watch: Option<PollInterval>,
+
     /// run a command and show its stdout instead of reading files. the
     /// positional arguments are the command, so put `--` before it:
     /// `eat -x -- git diff main..HEAD`
@@ -190,15 +196,15 @@ impl WrapMode {
 /// `1m`, `1.5s`, or a bare number (= seconds). minimum 50ms; smaller values
 /// are silently clamped. zero / negative / non-finite values are rejected.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FollowDuration(pub std::time::Duration);
+pub struct PollInterval(pub std::time::Duration);
 
-impl FollowDuration {
+impl PollInterval {
     /// minimum permitted poll interval. 50ms is enough headroom for a tui
     /// redraw + tick; anything below is just busy-looping w/out user value.
     pub const MIN: std::time::Duration = std::time::Duration::from_millis(50);
 
-    /// default poll interval applied when the flag is given w/out a value.
-    pub const DEFAULT: std::time::Duration = std::time::Duration::from_millis(250);
+    /// default poll interval applied when `-w` is given w/out a value.
+    pub const DEFAULT: std::time::Duration = std::time::Duration::from_secs(1);
 
     pub fn parse(value: &str) -> Result<Self, String> {
         let s = value.trim();
@@ -228,11 +234,11 @@ impl FollowDuration {
         if d < Self::MIN {
             d = Self::MIN;
         }
-        Ok(FollowDuration(d))
+        Ok(PollInterval(d))
     }
 }
 
-impl argh::FromArgValue for FollowDuration {
+impl argh::FromArgValue for PollInterval {
     fn from_arg_value(value: &str) -> Result<Self, String> {
         Self::parse(value)
     }
@@ -340,7 +346,12 @@ pub(crate) fn parse_cli() -> Cli {
         }
     }
 
-    let rewritten = rewrite_argv(&argv, via_eat_flag);
+    let watch_default = std::env::var("EAT_WATCH_INTERVAL_MS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(|ms| format!("{ms}ms"))
+        .unwrap_or_else(|| format!("{}ms", PollInterval::DEFAULT.as_millis()));
+    let rewritten = rewrite_argv(&argv, via_eat_flag, &watch_default);
     let strs: Vec<&str> = rewritten.iter().map(|s| s.as_str()).collect();
     match Cli::from_args(&[strs[0]], &strs[1..]) {
         Ok(c) => c,
@@ -362,11 +373,11 @@ pub(crate) fn parse_cli() -> Cli {
     }
 }
 
-/// The argv as argh will see it: `--eat` stripped, and `-L` given its
-/// default format when the next token is not one. Everything after `--`
-/// passes through untouched, since from there on the tokens are paths or,
-/// with `-x`, a command.
-fn rewrite_argv(argv: &[String], via_eat_flag: bool) -> Vec<String> {
+/// The argv as argh will see it: `--eat` stripped, and the two options
+/// with an optional value (`-L`, `-w`) given their default when the next
+/// token is not one. Everything after `--` passes through untouched, since
+/// from there on the tokens are paths or, with `-x`, a command.
+fn rewrite_argv(argv: &[String], via_eat_flag: bool, watch_default: &str) -> Vec<String> {
     let mut rewritten: Vec<String> = Vec::with_capacity(argv.len() + 1);
     rewritten.push(argv[0].clone());
     let mut i = 1;
@@ -386,6 +397,16 @@ fn rewrite_argv(argv: &[String], via_eat_flag: bool) -> Vec<String> {
                 rewritten.push("pretty".to_string());
             }
             i += 1;
+        } else if a == "-w" || a == "--watch" {
+            rewritten.push(a.clone());
+            let next = argv.get(i + 1);
+            if next.is_some_and(|n| PollInterval::parse(n).is_ok()) {
+                rewritten.push(next.unwrap().clone());
+                i += 2;
+            } else {
+                rewritten.push(watch_default.to_string());
+                i += 1;
+            }
         } else {
             rewritten.push(a.clone());
             i += 1;
@@ -414,28 +435,100 @@ mod tests {
         parts.iter().map(|s| s.to_string()).collect()
     }
 
+    fn rewrite(parts: &[&str]) -> Vec<String> {
+        rewrite_argv(&argv(parts), false, "1000ms")
+    }
+
     #[test]
     fn rewrite_gives_bare_list_languages_a_format() {
-        let out = rewrite_argv(&argv(&["eat", "-L"]), false);
-        assert_eq!(out, argv(&["eat", "-L", "pretty"]));
-        let out = rewrite_argv(&argv(&["eat", "-L", "json"]), false);
-        assert_eq!(out, argv(&["eat", "-L", "json"]));
+        assert_eq!(rewrite(&["eat", "-L"]), argv(&["eat", "-L", "pretty"]));
+        assert_eq!(rewrite(&["eat", "-L", "json"]), argv(&["eat", "-L", "json"]));
+    }
+
+    #[test]
+    fn rewrite_gives_bare_watch_the_default() {
+        assert_eq!(rewrite(&["eat", "-w", "x.log"]), argv(&["eat", "-w", "1000ms", "x.log"]));
+        assert_eq!(rewrite(&["eat", "-w", "2s", "x.log"]), argv(&["eat", "-w", "2s", "x.log"]));
+        assert_eq!(rewrite(&["eat", "-w"]), argv(&["eat", "-w", "1000ms"]));
+        assert_eq!(rewrite(&["eat", "-w", "--", "x"]), argv(&["eat", "-w", "1000ms", "--", "x"]));
     }
 
     #[test]
     fn rewrite_leaves_everything_after_the_separator_alone() {
-        let out = rewrite_argv(&argv(&["eat", "-x", "--", "ls", "-L"]), false);
-        assert_eq!(out, argv(&["eat", "-x", "--", "ls", "-L"]));
-        let out = rewrite_argv(&argv(&["eat", "--", "-L"]), false);
-        assert_eq!(out, argv(&["eat", "--", "-L"]));
+        assert_eq!(
+            rewrite(&["eat", "-x", "--", "ls", "-L"]),
+            argv(&["eat", "-x", "--", "ls", "-L"])
+        );
+        assert_eq!(rewrite(&["eat", "--", "-w"]), argv(&["eat", "--", "-w"]));
     }
 
     #[test]
     fn rewrite_strips_the_eat_flag_only_when_injected() {
-        let out = rewrite_argv(&argv(&["edit", "--eat", "a.txt"]), true);
+        let out = rewrite_argv(&argv(&["edit", "--eat", "a.txt"]), true, "1000ms");
         assert_eq!(out, argv(&["edit", "a.txt"]));
-        let out = rewrite_argv(&argv(&["eat", "--", "--eat"]), true);
+        let out = rewrite_argv(&argv(&["eat", "--", "--eat"]), true, "1000ms");
         assert_eq!(out, argv(&["eat", "--", "--eat"]));
+    }
+
+    /// Every argv up to four tokens over the alphabet the two-stage parse
+    /// (rewrite, then argh) can trip over, checked against the rules the
+    /// matrix promises rather than against expected outputs.
+    #[test]
+    fn every_short_argv_parses_by_the_rules() {
+        use argh::FromArgs;
+        const ALPHABET: [&str; 7] = ["-w", "2s", "-x", "--", "a.txt", "-", "-n"];
+        let mut count = 0;
+        let mut stack: Vec<Vec<&str>> = vec![vec![]];
+        while let Some(seq) = stack.pop() {
+            if seq.len() < 4 {
+                for t in ALPHABET {
+                    let mut next = seq.clone();
+                    next.push(t);
+                    stack.push(next);
+                }
+            }
+            count += 1;
+            let mut raw = vec!["eat"];
+            raw.extend(&seq);
+            let rewritten = rewrite_argv(&argv(&raw), false, "1000ms");
+            let strs: Vec<&str> = rewritten.iter().map(String::as_str).collect();
+            let before_sep: Vec<&str> = seq.iter().copied().take_while(|t| *t != "--").collect();
+            let after_sep: Vec<&str> = match seq.iter().position(|t| *t == "--") {
+                Some(i) => seq[i + 1..].to_vec(),
+                None => vec![],
+            };
+
+            // the rewrite never touches the separator or anything after it.
+            if seq.contains(&"--") {
+                let tail: Vec<&str> =
+                    strs.iter().rev().take(after_sep.len()).rev().copied().collect();
+                assert_eq!(tail, after_sep, "{seq:?}: rewritten {strs:?}");
+            }
+
+            let Ok(cli) = Cli::from_args(&[strs[0]], &strs[1..]) else { continue };
+
+            // -x and -w are only flags before the separator.
+            assert_eq!(cli.exec, before_sep.contains(&"-x"), "{seq:?}");
+            assert_eq!(cli.watch.is_some(), before_sep.contains(&"-w"), "{seq:?}");
+
+            // bare -w takes the default; -w 2s takes 2s.
+            if let Some(i) = before_sep.iter().position(|t| *t == "-w") {
+                let want = match before_sep.get(i + 1) {
+                    Some(&"2s") => std::time::Duration::from_secs(2),
+                    _ => std::time::Duration::from_secs(1),
+                };
+                assert_eq!(cli.watch.map(|w| w.0), Some(want), "{seq:?}");
+            }
+
+            // everything after the separator is a positional, in order.
+            let files: Vec<&str> = cli.files.iter().map(String::as_str).collect();
+            assert!(files.ends_with(&after_sep), "{seq:?}: files {files:?}");
+            // and nothing before it that is a flag ends up there.
+            for f in &files[..files.len() - after_sep.len()] {
+                assert!(!["-w", "-x", "-n"].contains(f), "{seq:?}: files {files:?}");
+            }
+        }
+        assert_eq!(count, 1 + 7 + 49 + 343 + 2401);
     }
 
     // --- line range parsing ---
@@ -576,12 +669,12 @@ mod tests {
         assert!(parse("xml").is_err());
     }
 
-    // --- follow duration ---
+    // --- poll interval ---
 
     #[test]
-    fn follow_duration_parsing() {
+    fn poll_interval_parsing() {
         use std::time::Duration;
-        let p = |s: &str| FollowDuration::parse(s).map(|d| d.0);
+        let p = |s: &str| PollInterval::parse(s).map(|d| d.0);
         assert_eq!(p("250ms"), Ok(Duration::from_millis(250)));
         assert_eq!(p("2"), Ok(Duration::from_secs(2)));
         assert_eq!(p("2s"), Ok(Duration::from_secs(2)));
@@ -589,18 +682,18 @@ mod tests {
         assert_eq!(p("1m"), Ok(Duration::from_secs(60)));
         assert_eq!(p("30s"), Ok(Duration::from_secs(30)));
         // clamping at MIN
-        assert_eq!(p("10ms"), Ok(FollowDuration::MIN));
-        assert_eq!(p("0.001s"), Ok(FollowDuration::MIN));
+        assert_eq!(p("10ms"), Ok(PollInterval::MIN));
+        assert_eq!(p("0.001s"), Ok(PollInterval::MIN));
     }
 
     #[test]
-    fn follow_duration_rejections() {
-        assert!(FollowDuration::parse("").is_err());
-        assert!(FollowDuration::parse("abc").is_err());
-        assert!(FollowDuration::parse("10x").is_err());
-        assert!(FollowDuration::parse("-5s").is_err());
-        assert!(FollowDuration::parse("0").is_err());
-        assert!(FollowDuration::parse("0ms").is_err());
+    fn poll_interval_rejections() {
+        assert!(PollInterval::parse("").is_err());
+        assert!(PollInterval::parse("abc").is_err());
+        assert!(PollInterval::parse("10x").is_err());
+        assert!(PollInterval::parse("-5s").is_err());
+        assert!(PollInterval::parse("0").is_err());
+        assert!(PollInterval::parse("0ms").is_err());
     }
 
     // theme tests live in `lsh_defs::theme::tests` -- the colourmap impl

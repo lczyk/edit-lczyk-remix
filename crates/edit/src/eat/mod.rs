@@ -30,6 +30,8 @@ use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use std::time::Duration;
+
 use cli::{Cli, LineRange, parse_cli, parse_line_range, prog_name, resolve_use_color};
 use detect::{resolve_language, resolve_language_with};
 use stream::run;
@@ -44,6 +46,12 @@ fn run_exec_cli(cli: &Cli, line_range: Option<LineRange>) -> ExitCode {
         return ExitCode::from(2);
     }
     let use_viewer = io::stdout().is_terminal() && !cli.plain && line_range.is_none();
+    if cli.watch.is_some()
+        && !use_viewer
+        && let Some(code) = watch_usage_error(cli, line_range.is_some())
+    {
+        return code;
+    }
     if use_viewer {
         let lang = match cli.language.as_deref() {
             Some(name) => match resolve_language_with(None, Some(name), Vec::new) {
@@ -70,13 +78,30 @@ fn run_exec_cli(cli: &Cli, line_range: Option<LineRange>) -> ExitCode {
     )
 }
 
+/// `-w` wants the viewer, so what keeps the viewer off is a usage error:
+/// `--plain`, `--line-range`, no tty. `None` when none of those apply.
+fn watch_usage_error(cli: &Cli, has_line_range: bool) -> Option<ExitCode> {
+    let why = if cli.plain {
+        "cannot be combined with --plain"
+    } else if has_line_range {
+        "cannot be combined with --line-range"
+    } else if !io::stdout().is_terminal() {
+        "needs a tty"
+    } else {
+        return None;
+    };
+    eprintln!("{}: -w {why}", prog_name());
+    Some(ExitCode::from(2))
+}
+
 fn run_snapshot(
     source: views::Source,
     lang: Option<&'static lsh::runtime::Language>,
     cli: &Cli,
 ) -> ExitCode {
     let use_color = resolve_use_color(cli.color, true);
-    match views::run_snapshot(source, lang, cli.number, use_color, cli.wrap.resolve()) {
+    let watch: Option<Duration> = cli.watch.map(|w| w.0);
+    match views::run_snapshot(source, lang, cli.number, use_color, cli.wrap.resolve(), watch) {
         Ok(()) => ExitCode::from(0),
         Err(e) => {
             eprintln!("{}: {e}", prog_name());
@@ -124,6 +149,24 @@ pub fn main() -> ExitCode {
         && cli.files.len() == 1
         && cli.files[0] != "-"
         && !std::path::Path::new(&cli.files[0]).is_dir();
+
+    if cli.watch.is_some() && !use_snapshot_tui {
+        let shape = match cli.files.len() {
+            0 => Some("needs a file"),
+            1 if cli.files[0] == "-" => Some("cannot watch stdin"),
+            1 if std::path::Path::new(&cli.files[0]).is_dir() => Some("cannot watch a directory"),
+            1 => None,
+            _ => Some("takes a single file"),
+        };
+        if let Some(why) = shape {
+            eprintln!("{}: -w {why}", prog_name());
+            return ExitCode::from(2);
+        }
+        if let Some(code) = watch_usage_error(&cli, line_range.is_some()) {
+            return code;
+        }
+        unreachable!("a single watchable file on a tty takes the viewer");
+    }
 
     if use_snapshot_tui {
         let path = PathBuf::from(&cli.files[0]);
