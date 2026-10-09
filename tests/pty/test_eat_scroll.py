@@ -100,3 +100,21 @@ def moving_down_onto_short_lines_keeps_the_columns():
             frame = ed.plain_since(mark)
             expect(b"TAIL" in frame, "moving down dragged the viewport back")
             expect(b"begin" not in frame, "viewport landed at column 0")
+
+
+@test
+def a_resize_keeps_the_viewport():
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "long.txt")
+        _write(path, _numbered_lines(60))
+        with Edit(["--eat", "--color", "never", "--wrap", "never", path],
+                  cols=40, rows=8) as ed:
+            for _ in range(20):
+                ed.send(b"j")
+            expect(b"line 020" in ed.plain, "did not scroll down before the resize")
+            # the viewer never shows a cursor, so the reader's place is the
+            # viewport, and a new width must not pull it to the cursor's row.
+            screen = ed.screen()
+            expect(b"line 020" in screen, f"the resize moved the viewport: {screen[:200]!r}")
+            expect(b"line 000" not in screen, "the resize jumped to the top")
+            ed.send(b"q")

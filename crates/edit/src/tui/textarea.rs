@@ -315,7 +315,11 @@ impl Context<'_, '_> {
                 {
                     let mut tb = content.buffer.borrow_mut();
                     make_cursor_visible = tb.take_cursor_visibility_request();
-                    make_cursor_visible |= tb.set_width(text_width);
+                    // A reflow follows the cursor only where the cursor is the
+                    // reader's place. Unfocused, the viewport is: eat's viewer
+                    // keeps its cursor parked at the top and must not snap to
+                    // it on a resize.
+                    make_cursor_visible |= tb.set_width(text_width) && content.has_focus;
                     scroll_delta_x = tb.take_scroll_delta_x_request();
                     scroll_delta_y = tb.take_scroll_delta_y_request();
                     scroll_to_tail = tb.take_scroll_to_tail_request();
