@@ -56,38 +56,45 @@ impl Source {
         }
     }
 
-    /// Replace the buffer with the source. `Err` is the note to show and
-    /// means the buffer was left alone: a file that could not be opened, or
-    /// a command that failed without producing anything. A command that
-    /// exits nonzero with output (`diff`, `grep`) is loaded, and the note
-    /// still says so.
-    ///
-    /// `last` is the command's previous stdout: the same bytes again are
-    /// `Unchanged`, so a live view does not repaint for nothing.
-    fn load(&self, b: &mut crate::buffer::TextBuffer, last: &mut Vec<u8>) -> Result<Load, String> {
+    /// Replace the buffer with the file. `Err` is the note to show and
+    /// means the buffer was left alone. A command is not loaded here: it
+    /// is started with [`exec::start`] and lands through [`Source::finish`]
+    /// when it returns.
+    fn load_file(&self, b: &mut crate::buffer::TextBuffer) -> Result<Load, String> {
         match self {
             Source::File(path) => {
                 let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
                 b.read_file(&mut f).map_err(|e| e.to_string())?;
                 Ok(Load::Loaded(None))
             }
-            Source::Command(argv) => {
-                let out = exec::run(argv).map_err(|e| e.to_string())?;
-                let note = (!out.status.success()).then(|| exec::failure_note(&out));
-                if out.stdout.is_empty()
-                    && let Some(note) = note
-                {
-                    return Err(note);
-                }
-                if out.stdout == *last {
-                    return Ok(Load::Unchanged(note));
-                }
-                b.read_from(&mut &out.stdout[..], Some(out.stdout.len()))
-                    .map_err(|e| e.to_string())?;
-                *last = out.stdout;
-                Ok(Load::Loaded(note))
-            }
+            Source::Command(_) => Ok(Load::Unchanged(None)),
         }
+    }
+
+    /// A command's output into the buffer. `Err` is the note to show and
+    /// means the buffer was left alone: a command that failed without
+    /// producing anything. A command that exits nonzero with output
+    /// (`diff`, `grep`) is loaded, and the note still says so.
+    ///
+    /// `last` is the command's previous stdout: the same bytes again are
+    /// `Unchanged`, so a live view does not repaint for nothing.
+    fn finish(
+        b: &mut crate::buffer::TextBuffer,
+        out: exec::Output,
+        last: &mut Vec<u8>,
+    ) -> Result<Load, String> {
+        let note = (!out.status.success()).then(|| exec::failure_note(&out));
+        if out.stdout.is_empty()
+            && let Some(note) = note
+        {
+            return Err(note);
+        }
+        if out.stdout == *last {
+            return Ok(Load::Unchanged(note));
+        }
+        b.read_from(&mut &out.stdout[..], Some(out.stdout.len())).map_err(|e| e.to_string())?;
+        *last = out.stdout;
+        Ok(Load::Loaded(note))
     }
 }
 
@@ -95,6 +102,14 @@ enum Load {
     Loaded(Option<String>),
     Unchanged(Option<String>),
 }
+
+/// How often the loop wakes while a command is in flight, so its result
+/// lands promptly. Idle, the poll interval rules.
+const RUN_POLL: Duration = Duration::from_millis(100);
+
+/// How long a freshly started command is given to return before the view
+/// paints `[running]`: a `cat` lands inside this and never flashes.
+const RUN_GRACE: Duration = Duration::from_millis(40);
 
 /// Run the snapshot tui pager. Loads the source into a [`TextBuffer`]
 /// (marked read-only) and mounts edit's tui via [`crate::mount::mount`].
@@ -108,7 +123,13 @@ enum Load {
 ///
 /// `watch` makes the view live: every interval the source is checked
 /// and, if it changed, loaded again as if `r` had been pressed. Static,
-/// a file is still polled every 2s for the `[modified on disk]` marker.
+/// a file is still polled every 2s for the `[modified on disk]` marker;
+/// a command is not run again until `r`.
+///
+/// A command runs in the background: the view paints at once with
+/// `[running]` in the header, keeps answering keys, and loads the output
+/// when the command returns. One run at a time; a poll or `r` that finds
+/// one in flight does nothing. The model is `doc/spec/eat-viewer.fizz`.
 ///
 /// Scope dropped (TODO(lczyk)):
 /// - `--color=never` override. edit's tui has no plain-mode toggle yet.
@@ -131,21 +152,39 @@ pub fn run_snapshot(
         TextBuffer::new_rc(false).map_err(|e| io::Error::other(format!("text buffer: {e:?}")))?;
     let mut marker = Marker::None;
     let mut last_output = Vec::new();
+    // The language is settled once there is content to sniff: now for a
+    // file, when the first run returns for a command without `-l`.
+    let mut lang = lang;
+    let mut running: Option<exec::Run> = match &source {
+        Source::File(_) => None,
+        Source::Command(argv) => {
+            let mut run = exec::start(argv)
+                .map_err(|e| io::Error::other(format!("{}: {e}", source.label())))?;
+            match run.wait_up_to(RUN_GRACE) {
+                Ok(None) => Some(run),
+                Ok(Some(out)) => {
+                    let mut b = buf.borrow_mut();
+                    marker = marker_of(Source::finish(&mut b, out, &mut last_output));
+                    None
+                }
+                Err(e) => return Err(io::Error::other(format!("{}: {e}", source.label()))),
+            }
+        }
+    };
     {
         let mut b = buf.borrow_mut();
-        match source.load(&mut b, &mut last_output) {
+        match source.load_file(&mut b) {
             Ok(Load::Loaded(None) | Load::Unchanged(None)) => {}
             Ok(Load::Loaded(Some(note)) | Load::Unchanged(Some(note))) => {
                 marker = Marker::Note(note)
             }
             Err(note) => return Err(io::Error::other(format!("{}: {note}", source.label()))),
         }
-        let lang = lang.unwrap_or_else(|| {
-            let head = b.read_forward(0);
-            let head = head[..head.len().min(4096)].to_vec();
-            lsh_defs::detect::resolve(None, lsh_defs::detect::NO_USER_ASSOCIATIONS, || head)
-        });
-        b.set_language(lang);
+        if let Some(lang) = lang {
+            b.set_language(lang);
+        } else if running.is_none() {
+            lang = Some(settle_language(&mut b));
+        }
         b.set_margin_enabled(show_numbers);
         b.set_word_wrap(wrap);
         b.set_read_only(true);
@@ -155,13 +194,16 @@ pub fn run_snapshot(
     let path_label = source.label();
     let mut captured_stat = source.stat();
     let mut last_disk_check = Instant::now();
-    let mut header = snapshot_header(&path_label, Instant::now(), &marker, watch);
+    let mut header =
+        snapshot_header(&path_label, Instant::now(), &marker, watch, running.is_some());
     let poll_interval = watch.unwrap_or(Duration::from_secs(2));
+    let tick_override = std::rc::Rc::new(std::cell::Cell::new(running.as_ref().map(|_| RUN_POLL)));
 
     let _session = viewer::ViewerSession::begin()?;
 
     let opts = mount::MountOpts {
         tick_interval: Some(poll_interval),
+        tick_override: Some(tick_override.clone()),
         on_probe: Some(reflow_on_ambiguous_width(buf.clone())),
         ..Default::default()
     };
@@ -182,13 +224,37 @@ pub fn run_snapshot(
                     buf.borrow_mut().set_word_wrap(wrap);
                     ctx.needs_rerender();
                 }
-                ViewerKey::Reload => {
-                    marker = reload(&source, &buf, &mut last_output, show_numbers, wrap);
-                    captured_stat = source.stat();
-                    last_disk_check = Instant::now();
-                    header = snapshot_header(&path_label, Instant::now(), &marker, watch);
-                    ctx.needs_rerender();
-                }
+                ViewerKey::Reload => match &source {
+                    Source::File(_) => {
+                        marker = reload_file(&source, &buf, show_numbers, wrap);
+                        captured_stat = source.stat();
+                        last_disk_check = Instant::now();
+                        header =
+                            snapshot_header(&path_label, Instant::now(), &marker, watch, false);
+                        ctx.needs_rerender();
+                    }
+                    // A run already in flight is the reload; nothing more.
+                    Source::Command(argv) if running.is_none() => {
+                        running = start_run(argv, &mut marker);
+                        if let Some(run) = running.as_mut()
+                            && let Ok(Some(out)) = run.wait_up_to(RUN_GRACE)
+                        {
+                            running = None;
+                            marker = finish_run(&buf, out, &mut last_output, show_numbers, wrap);
+                        }
+                        tick_override.set(running.as_ref().map(|_| RUN_POLL));
+                        last_disk_check = Instant::now();
+                        header = snapshot_header(
+                            &path_label,
+                            Instant::now(),
+                            &marker,
+                            watch,
+                            running.is_some(),
+                        );
+                        ctx.needs_rerender();
+                    }
+                    Source::Command(_) => {}
+                },
                 ViewerKey::ScrollLines(d) => buf.borrow_mut().request_scroll_delta_y(d),
                 ViewerKey::ScrollPages(p) => {
                     buf.borrow_mut().request_scroll_delta_y(p * (body_h - 1).max(1));
@@ -206,37 +272,83 @@ pub fn run_snapshot(
             }
         }
 
+        // A run in flight: has it returned? Checked every frame; the tick
+        // override keeps frames coming at RUN_POLL while one is out.
+        if let Some(run) = running.as_mut() {
+            let done = match run.poll() {
+                Ok(None) => None,
+                Ok(Some(out)) => Some(Ok(out)),
+                Err(e) => Some(Err(e.to_string())),
+            };
+            if let Some(result) = done {
+                running = None;
+                tick_override.set(None);
+                marker = match result {
+                    Ok(out) => {
+                        let next = finish_run(&buf, out, &mut last_output, show_numbers, wrap);
+                        if lang.is_none() {
+                            lang = Some(settle_language(&mut buf.borrow_mut()));
+                        }
+                        next
+                    }
+                    Err(note) => Marker::Note(note),
+                };
+                last_disk_check = Instant::now();
+                header = snapshot_header(&path_label, Instant::now(), &marker, watch, false);
+                ctx.needs_rerender();
+            }
+        }
+
         // the poll. fires at most every `poll_interval`; mount's
         // tick_interval keeps the loop awake to hit this branch even with
-        // no user input. a file is stat'ed; a command has to be run to know.
+        // no user input. a file is stat'ed; a live command is run again,
+        // a static one is not (there is nothing cheap to ask it).
         let now = Instant::now();
-        if now.duration_since(last_disk_check) >= poll_interval {
+        if running.is_none() && now.duration_since(last_disk_check) >= poll_interval {
             last_disk_check = now;
-            let changed = match (&source, &captured_stat, source.stat()) {
-                (Source::Command(_), _, _) => true,
-                (_, Some(a), Some(b)) => *a != b,
-                (_, Some(_), None) | (_, None, Some(_)) => true,
-                (_, None, None) => false,
-            };
-            let next = if watch.is_some() {
-                if changed {
-                    let next = reload(&source, &buf, &mut last_output, show_numbers, wrap);
-                    captured_stat = source.stat();
-                    next
-                } else {
-                    marker.clone()
+            match &source {
+                Source::Command(argv) => {
+                    if watch.is_some() {
+                        running = start_run(argv, &mut marker);
+                        tick_override.set(running.as_ref().map(|_| RUN_POLL));
+                        header = snapshot_header(
+                            &path_label,
+                            Instant::now(),
+                            &marker,
+                            watch,
+                            running.is_some(),
+                        );
+                        ctx.needs_rerender();
+                    }
                 }
-            } else {
-                match (&marker, changed) {
-                    (Marker::Note(_), _) => marker.clone(),
-                    (_, true) => Marker::Modified,
-                    (_, false) => Marker::None,
+                Source::File(_) => {
+                    let changed = match (&captured_stat, source.stat()) {
+                        (Some(a), Some(b)) => *a != b,
+                        (Some(_), None) | (None, Some(_)) => true,
+                        (None, None) => false,
+                    };
+                    let next = if watch.is_some() {
+                        if changed {
+                            let next = reload_file(&source, &buf, show_numbers, wrap);
+                            captured_stat = source.stat();
+                            next
+                        } else {
+                            marker.clone()
+                        }
+                    } else {
+                        match (&marker, changed) {
+                            (Marker::Note(_), _) => marker.clone(),
+                            (_, true) => Marker::Modified,
+                            (_, false) => Marker::None,
+                        }
+                    };
+                    if next != marker {
+                        marker = next;
+                        header =
+                            snapshot_header(&path_label, Instant::now(), &marker, watch, false);
+                        ctx.needs_rerender();
+                    }
                 }
-            };
-            if next != marker {
-                marker = next;
-                header = snapshot_header(&path_label, Instant::now(), &marker, watch);
-                ctx.needs_rerender();
             }
         }
 
@@ -254,25 +366,64 @@ pub fn run_snapshot(
     })
 }
 
-/// Load the source again, keeping the viewport. Returns the marker to
-/// show: the load's note, or none. An unchanged command output is left
-/// alone, the buffer already shows it.
-fn reload(
+/// Read the file again, keeping the viewport. Returns the marker to show:
+/// the load's note, or none.
+fn reload_file(
     source: &Source,
     buf: &crate::buffer::RcTextBuffer,
+    show_numbers: bool,
+    wrap: bool,
+) -> Marker {
+    let mut b = buf.borrow_mut();
+    b.set_read_only(false);
+    let loaded = source.load_file(&mut b);
+    settle_load(&mut b, &loaded, show_numbers, wrap);
+    b.set_read_only(true);
+    marker_of(loaded)
+}
+
+/// A returned command into the buffer, keeping the viewport. An
+/// unchanged output is left alone, the buffer already shows it.
+fn finish_run(
+    buf: &crate::buffer::RcTextBuffer,
+    out: exec::Output,
     last_output: &mut Vec<u8>,
     show_numbers: bool,
     wrap: bool,
 ) -> Marker {
     let mut b = buf.borrow_mut();
     b.set_read_only(false);
-    let loaded = source.load(&mut b, last_output);
+    let loaded = Source::finish(&mut b, out, last_output);
+    settle_load(&mut b, &loaded, show_numbers, wrap);
+    b.set_read_only(true);
+    marker_of(loaded)
+}
+
+/// Start a command; a spawn failure becomes the marker, there is no run.
+fn start_run(argv: &[String], marker: &mut Marker) -> Option<exec::Run> {
+    match exec::start(argv) {
+        Ok(run) => Some(run),
+        Err(e) => {
+            *marker = Marker::Note(e.to_string());
+            None
+        }
+    }
+}
+
+fn settle_load(
+    b: &mut crate::buffer::TextBuffer,
+    loaded: &Result<Load, String>,
+    show_numbers: bool,
+    wrap: bool,
+) {
     if let Ok(Load::Loaded(_)) = loaded {
         b.set_margin_enabled(show_numbers);
         b.set_word_wrap(wrap);
         b.request_scroll_bound_to_tail();
     }
-    b.set_read_only(true);
+}
+
+fn marker_of(loaded: Result<Load, String>) -> Marker {
     match loaded {
         Ok(Load::Loaded(None) | Load::Unchanged(None)) => Marker::None,
         Ok(Load::Loaded(Some(note)) | Load::Unchanged(Some(note))) | Err(note) => {
@@ -281,17 +432,29 @@ fn reload(
     }
 }
 
+/// Sniff the language off the buffer's head: a command's output has no
+/// path to go by.
+fn settle_language(b: &mut crate::buffer::TextBuffer) -> &'static Language {
+    let head = b.read_forward(0);
+    let head = head[..head.len().min(4096)].to_vec();
+    let lang = lsh_defs::detect::resolve(None, lsh_defs::detect::NO_USER_ASSOCIATIONS, || head);
+    b.set_language(lang);
+    lang
+}
+
 /// The marker leads so a long path cannot push it off a narrow screen.
 fn snapshot_header(
     path_label: &str,
     at: Instant,
     marker: &Marker,
     watch: Option<Duration>,
+    running: bool,
 ) -> String {
+    let run = if running { "[running] " } else { "" };
     let lead = match marker {
-        Marker::None => String::new(),
-        Marker::Modified => "[modified on disk] ".to_string(),
-        Marker::Note(note) => format!("[{note}] "),
+        Marker::None => run.to_string(),
+        Marker::Modified => format!("{run}[modified on disk] "),
+        Marker::Note(note) => format!("{run}[{note}] "),
     };
     let live = match watch {
         Some(every) => format!("live {}ms; ", every.as_millis()),

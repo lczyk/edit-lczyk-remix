@@ -56,7 +56,8 @@ pub(crate) struct Cli {
 
     /// live view: load the source again whenever it changes, polled every
     /// DUR (`-w 2s`, `-w 500ms`, `-w 2` = seconds; bare `-w` is 1s, or
-    /// EAT_WATCH_INTERVAL_MS). needs a tty and one file or a command.
+    /// EAT_WATCH_INTERVAL_MS; a command polls no faster than 250ms). needs
+    /// a tty and one file or a command.
     #[argh(option, short = 'w')]
     pub(crate) watch: Option<PollInterval>,
 

@@ -100,7 +100,13 @@ fn run_snapshot(
     cli: &Cli,
 ) -> ExitCode {
     let use_color = resolve_use_color(cli.color, true);
-    let watch: Option<Duration> = cli.watch.map(|w| w.0);
+    // A command is a spawn per poll, not a stat: fifty of these at 50ms
+    // would be a core. The floor is a quarter second, said in the header.
+    let floor = match source {
+        views::Source::Command(_) => Duration::from_millis(250),
+        views::Source::File(_) => Duration::ZERO,
+    };
+    let watch: Option<Duration> = cli.watch.map(|w| w.0.max(floor));
     match views::run_snapshot(source, lang, cli.number, use_color, cli.wrap.resolve(), watch) {
         Ok(()) => ExitCode::from(0),
         Err(e) => {

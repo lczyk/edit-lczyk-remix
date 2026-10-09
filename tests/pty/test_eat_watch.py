@@ -57,10 +57,10 @@ def a_changed_command_output_is_loaded_without_a_keypress():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "doc.txt")
         _write(path, _numbered(40, "v1"))
-        env = {"EAT_WATCH_INTERVAL_MS": "200"}
+        env = {"EAT_WATCH_INTERVAL_MS": "300"}
         with Edit(["--eat", "--color", "never", "-w", "-x", "--", "cat", path],
                   cols=120, rows=8, env=env) as ed:
-            expect(b"live 200ms" in ed.plain, "the env default did not reach the header")
+            expect(b"live 300ms" in ed.plain, "the env default did not reach the header")
             for _ in range(10):
                 ed.send(b"j")
             _write(path, _numbered(40, "v2"))

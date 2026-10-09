@@ -64,6 +64,12 @@ pub struct MountOpts {
     /// `None` (default) means: block on input indefinitely (or until the
     /// vt parser / tui animation requests a shorter timeout).
     pub tick_interval: Option<Duration>,
+    /// A shorter tick the draw callback can switch on and off between
+    /// frames, for a stretch where something is pending (a background
+    /// command) and the result should land promptly without the idle
+    /// cadence paying for it. Read before every wait; `None` inside means
+    /// `tick_interval` applies.
+    pub tick_override: Option<std::rc::Rc<std::cell::Cell<Option<Duration>>>>,
     /// Invoked once, after [`term::setup`] has probed the terminal and
     /// [`mount`] has applied the process-global ambiguous width, but
     /// before the first draw.
@@ -81,6 +87,7 @@ impl Default for MountOpts {
             fallback_palette: DEFAULT_THEME,
             emit_indexed_codes: true,
             tick_interval: None,
+            tick_override: None,
             on_probe: None,
         }
     }
@@ -192,6 +199,9 @@ where
             let scratch = scratch_arena(None);
             let mut timeout = vt_parser.read_timeout().min(tui.read_timeout());
             if let Some(tick) = opts.tick_interval {
+                timeout = timeout.min(tick);
+            }
+            if let Some(tick) = opts.tick_override.as_ref().and_then(|t| t.get()) {
                 timeout = timeout.min(tick);
             }
             let Some(inp) = sys::read_stdin(&scratch, timeout) else {
