@@ -1,0 +1,99 @@
+#[display_name = "FizzBee"]
+#[line_comment = "#"]
+#[path = "**/*.fizz"]
+pub fn fizzbee() {
+    // Optional YAML frontmatter: a "---" fence on the very first line,
+    // closed by another "---". Same shape and the same ln == 1 guard as
+    // markdown's.
+    var first = 1;
+    if ln == first {
+        if /---\s*/ {
+            yield meta.header;
+            loop {
+                await input;
+                if /---\s*/ {
+                    yield meta.header;
+                    return;
+                } else {
+                    yaml();
+                    if /.*/ {}
+                }
+            }
+        }
+    }
+
+    // The body is Starlark, so this is python.lsh's lexer with FizzBee's
+    // keywords and without the docstring heuristic: a triple-quoted
+    // string is always a string here.
+    until /$/ {
+        yield other;
+
+        if /#.*/ {
+            yield comment;
+        } else if /[a-zA-Z_]\w*'''/ {
+            loop {
+                yield string;
+                if /'''/ { yield string; break; }
+                await input;
+            }
+        } else if /[a-zA-Z_]\w*"""/ {
+            loop {
+                yield string;
+                if /"""/ { yield string; break; }
+                await input;
+            }
+        } else if /'''/ {
+            loop {
+                yield string;
+                if /'''/ { yield string; break; }
+                await input;
+            }
+        } else if /"""/ {
+            loop {
+                yield string;
+                if /"""/ { yield string; break; }
+                await input;
+            }
+        } else if /'/ {
+            loop {
+                if /[^'\\]+/ {}
+                yield string;
+                if /\\$/ {
+                    await input;
+                }
+                else if /\\./ {}
+                else if /'/ { yield string; break; }
+                else { break; }
+            }
+        } else if /"/ {
+            loop {
+                if /[^"\\]+/ {}
+                yield string;
+                if /\\$/ {
+                    await input;
+                }
+                else if /\\./ {}
+                else if /"/ { yield string; break; }
+                else { break; }
+            }
+        } else if /(?:break|continue|elif|else|for|if|pass|require|return|while)\>/ {
+            yield keyword.control;
+        } else if /(?:action|always|and|any|assertion|atomic|eventually|exists|fair|func|invariant|in|not|oneof|or|parallel|role|serial|transition)\>/ {
+            yield keyword.other;
+        } else if /(?:True|False|None)\>/ {
+            yield constant.language;
+        } else if /(?i:-?(?:0x[\da-fA-F_]+|0b[01_]+|0o[0-7_]+|[\d_]+\.?[\d_]*|\.[\d_]+)(?:e[+-]?[\d_]+)?)/ {
+            if /\w+/ {
+                // Invalid numeric literal
+            } else {
+                yield constant.numeric;
+            }
+        } else if /(\w+)\s*\(/ {
+            yield $1 as method;
+        } else if /\w+/ {
+            // Gobble word chars to align the next iteration on a word boundary.
+        }
+
+        yield other;
+    }
+}

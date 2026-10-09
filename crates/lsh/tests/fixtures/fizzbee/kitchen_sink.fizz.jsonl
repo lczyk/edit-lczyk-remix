@@ -1,0 +1,306 @@
+{"line":1,"kind":"meta.header","text":"---"}
+{"line":2,"kind":"comment","text":"# frontmatter is yaml"}
+{"line":3,"kind":"other","text":"options:"}
+{"line":4,"kind":"other","text":"  max_actions: "}
+{"line":4,"kind":"constant.numeric","text":"40"}
+{"line":5,"kind":"other","text":"action_options:"}
+{"line":6,"kind":"other","text":"  Scroll:"}
+{"line":7,"kind":"other","text":"    max_actions: "}
+{"line":7,"kind":"constant.numeric","text":"2"}
+{"line":8,"kind":"other","text":"deadlock_detection: "}
+{"line":8,"kind":"constant.language","text":"false"}
+{"line":9,"kind":"meta.header","text":"---"}
+{"line":11,"kind":"comment","text":"# A comment after the frontmatter."}
+{"line":12,"kind":"other","text":"MAX_VERSION = "}
+{"line":12,"kind":"constant.numeric","text":"3"}
+{"line":13,"kind":"other","text":"LEN = {"}
+{"line":13,"kind":"constant.numeric","text":"0"}
+{"line":13,"kind":"other","text":": "}
+{"line":13,"kind":"constant.numeric","text":"1"}
+{"line":13,"kind":"other","text":", "}
+{"line":13,"kind":"constant.numeric","text":"1"}
+{"line":13,"kind":"other","text":": "}
+{"line":13,"kind":"constant.numeric","text":"5"}
+{"line":13,"kind":"other","text":", "}
+{"line":13,"kind":"constant.numeric","text":"2"}
+{"line":13,"kind":"other","text":": "}
+{"line":13,"kind":"constant.numeric","text":"1"}
+{"line":13,"kind":"other","text":", "}
+{"line":13,"kind":"constant.numeric","text":"3"}
+{"line":13,"kind":"other","text":": "}
+{"line":13,"kind":"constant.numeric","text":"3"}
+{"line":13,"kind":"other","text":"}"}
+{"line":14,"kind":"other","text":"RATE = "}
+{"line":14,"kind":"constant.numeric","text":"1.5e-3"}
+{"line":15,"kind":"other","text":"MASK = "}
+{"line":15,"kind":"constant.numeric","text":"0xff_00"}
+{"line":16,"kind":"other","text":"NAME = "}
+{"line":16,"kind":"string","text":"'single'"}
+{"line":17,"kind":"other","text":"LABEL = "}
+{"line":17,"kind":"string","text":"\"double with \\\"escape\\\"\""}
+{"line":18,"kind":"other","text":"DOC = "}
+{"line":18,"kind":"string","text":"\"\"\"triple"}
+{"line":19,"kind":"string","text":"quoted"}
+{"line":20,"kind":"string","text":"string\"\"\""}
+{"line":21,"kind":"other","text":"RAW = "}
+{"line":21,"kind":"string","text":"r'''prefixed"}
+{"line":22,"kind":"string","text":"triple'''"}
+{"line":24,"kind":"other","text":"Marker = "}
+{"line":24,"kind":"method","text":"enum"}
+{"line":24,"kind":"other","text":"("}
+{"line":24,"kind":"string","text":"'NONE'"}
+{"line":24,"kind":"other","text":", "}
+{"line":24,"kind":"string","text":"'MODIFIED'"}
+{"line":24,"kind":"other","text":", "}
+{"line":24,"kind":"string","text":"'ERROR'"}
+{"line":24,"kind":"other","text":")"}
+{"line":25,"kind":"other","text":"Act = "}
+{"line":25,"kind":"method","text":"enum"}
+{"line":25,"kind":"other","text":"("}
+{"line":25,"kind":"string","text":"'INIT'"}
+{"line":25,"kind":"other","text":", "}
+{"line":25,"kind":"string","text":"'TICK'"}
+{"line":25,"kind":"other","text":")"}
+{"line":27,"kind":"keyword.other","text":"role"}
+{"line":27,"kind":"other","text":" Node:"}
+{"line":28,"kind":"other","text":"    "}
+{"line":28,"kind":"keyword.other","text":"action"}
+{"line":28,"kind":"other","text":" Init:"}
+{"line":29,"kind":"other","text":"        self.status = Marker.NONE"}
+{"line":30,"kind":"other","text":"        self.values = ["}
+{"line":30,"kind":"constant.language","text":"False"}
+{"line":30,"kind":"other","text":" "}
+{"line":30,"kind":"keyword.control","text":"for"}
+{"line":30,"kind":"other","text":" i "}
+{"line":30,"kind":"keyword.other","text":"in"}
+{"line":30,"kind":"other","text":" "}
+{"line":30,"kind":"method","text":"range"}
+{"line":30,"kind":"other","text":"("}
+{"line":30,"kind":"constant.numeric","text":"3"}
+{"line":30,"kind":"other","text":")]"}
+{"line":32,"kind":"other","text":"    "}
+{"line":32,"kind":"keyword.other","text":"atomic"}
+{"line":32,"kind":"other","text":" "}
+{"line":32,"kind":"keyword.other","text":"fair"}
+{"line":32,"kind":"other","text":" "}
+{"line":32,"kind":"keyword.other","text":"action"}
+{"line":32,"kind":"other","text":" Done:"}
+{"line":33,"kind":"other","text":"        id = "}
+{"line":33,"kind":"keyword.other","text":"fair"}
+{"line":33,"kind":"other","text":" "}
+{"line":33,"kind":"keyword.other","text":"oneof"}
+{"line":33,"kind":"other","text":" "}
+{"line":33,"kind":"method","text":"range"}
+{"line":33,"kind":"other","text":"("}
+{"line":33,"kind":"method","text":"len"}
+{"line":33,"kind":"other","text":"(self.values))"}
+{"line":34,"kind":"other","text":"        self.values[id] = "}
+{"line":34,"kind":"constant.language","text":"True"}
+{"line":35,"kind":"other","text":"        done."}
+{"line":35,"kind":"method","text":"add"}
+{"line":35,"kind":"other","text":"(self.__id__)"}
+{"line":37,"kind":"other","text":"    "}
+{"line":37,"kind":"keyword.other","text":"atomic"}
+{"line":37,"kind":"other","text":" "}
+{"line":37,"kind":"keyword.other","text":"func"}
+{"line":37,"kind":"other","text":" "}
+{"line":37,"kind":"method","text":"process"}
+{"line":37,"kind":"other","text":"(id):"}
+{"line":38,"kind":"other","text":"        "}
+{"line":38,"kind":"keyword.control","text":"require"}
+{"line":38,"kind":"other","text":" id "}
+{"line":38,"kind":"keyword.other","text":"in"}
+{"line":38,"kind":"other","text":" self.values "}
+{"line":38,"kind":"keyword.other","text":"and"}
+{"line":38,"kind":"other","text":" "}
+{"line":38,"kind":"keyword.other","text":"not"}
+{"line":38,"kind":"other","text":" self.done"}
+{"line":39,"kind":"other","text":"        self.status = Marker.MODIFIED"}
+{"line":40,"kind":"other","text":"        "}
+{"line":40,"kind":"keyword.control","text":"return"}
+{"line":40,"kind":"other","text":" self.status"}
+{"line":42,"kind":"keyword.other","text":"action"}
+{"line":42,"kind":"other","text":" Init:"}
+{"line":43,"kind":"other","text":"    live = "}
+{"line":43,"kind":"keyword.other","text":"oneof"}
+{"line":43,"kind":"other","text":" ["}
+{"line":43,"kind":"constant.language","text":"False"}
+{"line":43,"kind":"other","text":", "}
+{"line":43,"kind":"constant.language","text":"True"}
+{"line":43,"kind":"other","text":"]"}
+{"line":44,"kind":"other","text":"    disk = "}
+{"line":44,"kind":"constant.numeric","text":"1"}
+{"line":45,"kind":"other","text":"    buf = "}
+{"line":45,"kind":"constant.numeric","text":"0"}
+{"line":46,"kind":"other","text":"    nodes = []"}
+{"line":47,"kind":"other","text":"    "}
+{"line":47,"kind":"keyword.control","text":"for"}
+{"line":47,"kind":"other","text":" i "}
+{"line":47,"kind":"keyword.other","text":"in"}
+{"line":47,"kind":"other","text":" "}
+{"line":47,"kind":"method","text":"range"}
+{"line":47,"kind":"other","text":"("}
+{"line":47,"kind":"constant.numeric","text":"0"}
+{"line":47,"kind":"other","text":", "}
+{"line":47,"kind":"constant.numeric","text":"2"}
+{"line":47,"kind":"other","text":"):"}
+{"line":48,"kind":"other","text":"        nodes."}
+{"line":48,"kind":"method","text":"append"}
+{"line":48,"kind":"other","text":"("}
+{"line":48,"kind":"method","text":"Node"}
+{"line":48,"kind":"other","text":"(ID=i))"}
+{"line":49,"kind":"other","text":"    done = "}
+{"line":49,"kind":"method","text":"set"}
+{"line":49,"kind":"other","text":"()"}
+{"line":51,"kind":"keyword.other","text":"atomic"}
+{"line":51,"kind":"other","text":" "}
+{"line":51,"kind":"keyword.other","text":"action"}
+{"line":51,"kind":"other","text":" SourceChange:"}
+{"line":52,"kind":"other","text":"    "}
+{"line":52,"kind":"keyword.control","text":"require"}
+{"line":52,"kind":"other","text":" disk != "}
+{"line":52,"kind":"constant.language","text":"None"}
+{"line":52,"kind":"other","text":" "}
+{"line":52,"kind":"keyword.other","text":"and"}
+{"line":52,"kind":"other","text":" disk < MAX_VERSION"}
+{"line":53,"kind":"other","text":"    disk += "}
+{"line":53,"kind":"constant.numeric","text":"1"}
+{"line":55,"kind":"keyword.other","text":"serial"}
+{"line":55,"kind":"other","text":" "}
+{"line":55,"kind":"keyword.other","text":"action"}
+{"line":55,"kind":"other","text":" Tick:"}
+{"line":56,"kind":"other","text":"    "}
+{"line":56,"kind":"keyword.control","text":"if"}
+{"line":56,"kind":"other","text":" live:"}
+{"line":57,"kind":"other","text":"        "}
+{"line":57,"kind":"keyword.control","text":"if"}
+{"line":57,"kind":"other","text":" disk == "}
+{"line":57,"kind":"constant.language","text":"None"}
+{"line":57,"kind":"other","text":":"}
+{"line":58,"kind":"other","text":"            marker = Marker.ERROR"}
+{"line":59,"kind":"other","text":"        "}
+{"line":59,"kind":"keyword.control","text":"elif"}
+{"line":59,"kind":"other","text":" disk != buf:"}
+{"line":60,"kind":"other","text":"            "}
+{"line":60,"kind":"method","text":"load"}
+{"line":60,"kind":"other","text":"()"}
+{"line":61,"kind":"other","text":"    "}
+{"line":61,"kind":"keyword.control","text":"else"}
+{"line":61,"kind":"other","text":":"}
+{"line":62,"kind":"other","text":"        "}
+{"line":62,"kind":"keyword.control","text":"pass"}
+{"line":64,"kind":"keyword.other","text":"parallel"}
+{"line":64,"kind":"other","text":" "}
+{"line":64,"kind":"keyword.other","text":"action"}
+{"line":64,"kind":"other","text":" Fanout:"}
+{"line":65,"kind":"other","text":"    "}
+{"line":65,"kind":"keyword.other","text":"any"}
+{"line":65,"kind":"other","text":" n "}
+{"line":65,"kind":"keyword.other","text":"in"}
+{"line":65,"kind":"other","text":" nodes:"}
+{"line":66,"kind":"other","text":"        n."}
+{"line":66,"kind":"method","text":"process"}
+{"line":66,"kind":"other","text":"("}
+{"line":66,"kind":"constant.numeric","text":"0"}
+{"line":66,"kind":"other","text":")"}
+{"line":68,"kind":"keyword.other","text":"atomic"}
+{"line":68,"kind":"other","text":" "}
+{"line":68,"kind":"keyword.other","text":"func"}
+{"line":68,"kind":"other","text":" "}
+{"line":68,"kind":"method","text":"load"}
+{"line":68,"kind":"other","text":"():"}
+{"line":69,"kind":"other","text":"    "}
+{"line":69,"kind":"keyword.control","text":"if"}
+{"line":69,"kind":"other","text":" disk == "}
+{"line":69,"kind":"constant.language","text":"None"}
+{"line":69,"kind":"other","text":":"}
+{"line":70,"kind":"other","text":"        marker = Marker.ERROR"}
+{"line":71,"kind":"other","text":"        "}
+{"line":71,"kind":"keyword.control","text":"return"}
+{"line":72,"kind":"other","text":"    buf = disk"}
+{"line":73,"kind":"other","text":"    "}
+{"line":73,"kind":"keyword.control","text":"while"}
+{"line":73,"kind":"other","text":" buf > LEN[buf] - "}
+{"line":73,"kind":"constant.numeric","text":"1"}
+{"line":73,"kind":"other","text":":"}
+{"line":74,"kind":"other","text":"        buf -= "}
+{"line":74,"kind":"constant.numeric","text":"1"}
+{"line":75,"kind":"other","text":"    marker = Marker.NONE"}
+{"line":77,"kind":"keyword.other","text":"invariant"}
+{"line":77,"kind":"other","text":" NeverNegative:"}
+{"line":78,"kind":"other","text":"    "}
+{"line":78,"kind":"keyword.control","text":"return"}
+{"line":78,"kind":"other","text":" buf >= "}
+{"line":78,"kind":"constant.numeric","text":"0"}
+{"line":80,"kind":"keyword.other","text":"always"}
+{"line":80,"kind":"other","text":" "}
+{"line":80,"kind":"keyword.other","text":"assertion"}
+{"line":80,"kind":"other","text":" TopInsideBuffer:"}
+{"line":81,"kind":"other","text":"    "}
+{"line":81,"kind":"keyword.control","text":"return"}
+{"line":81,"kind":"other","text":" "}
+{"line":81,"kind":"constant.numeric","text":"0"}
+{"line":81,"kind":"other","text":" <= buf "}
+{"line":81,"kind":"keyword.other","text":"and"}
+{"line":81,"kind":"other","text":" buf < LEN[buf]"}
+{"line":83,"kind":"keyword.other","text":"transition"}
+{"line":83,"kind":"other","text":" "}
+{"line":83,"kind":"keyword.other","text":"assertion"}
+{"line":83,"kind":"other","text":" "}
+{"line":83,"kind":"method","text":"LoadKeepsViewport"}
+{"line":83,"kind":"other","text":"(before, after):"}
+{"line":84,"kind":"other","text":"    "}
+{"line":84,"kind":"keyword.control","text":"if"}
+{"line":84,"kind":"other","text":" after.buf == before.buf:"}
+{"line":85,"kind":"other","text":"        "}
+{"line":85,"kind":"keyword.control","text":"return"}
+{"line":85,"kind":"other","text":" "}
+{"line":85,"kind":"constant.language","text":"True"}
+{"line":86,"kind":"other","text":"    "}
+{"line":86,"kind":"keyword.control","text":"return"}
+{"line":86,"kind":"other","text":" (after.buf == "}
+{"line":86,"kind":"method","text":"min"}
+{"line":86,"kind":"other","text":"(before.buf, LEN[after.buf] - "}
+{"line":86,"kind":"constant.numeric","text":"1"}
+{"line":86,"kind":"other","text":")"}
+{"line":87,"kind":"other","text":"            "}
+{"line":87,"kind":"keyword.other","text":"or"}
+{"line":87,"kind":"other","text":" after.buf == "}
+{"line":87,"kind":"constant.numeric","text":"0"}
+{"line":87,"kind":"other","text":")"}
+{"line":89,"kind":"keyword.other","text":"always"}
+{"line":89,"kind":"other","text":" "}
+{"line":89,"kind":"keyword.other","text":"eventually"}
+{"line":89,"kind":"other","text":" "}
+{"line":89,"kind":"keyword.other","text":"assertion"}
+{"line":89,"kind":"other","text":" LiveCatchesUp:"}
+{"line":90,"kind":"other","text":"    "}
+{"line":90,"kind":"keyword.control","text":"return"}
+{"line":90,"kind":"other","text":" "}
+{"line":90,"kind":"keyword.other","text":"not"}
+{"line":90,"kind":"other","text":" live "}
+{"line":90,"kind":"keyword.other","text":"or"}
+{"line":90,"kind":"other","text":" disk == "}
+{"line":90,"kind":"constant.language","text":"None"}
+{"line":90,"kind":"other","text":" "}
+{"line":90,"kind":"keyword.other","text":"or"}
+{"line":90,"kind":"other","text":" buf == disk"}
+{"line":92,"kind":"keyword.other","text":"exists"}
+{"line":92,"kind":"other","text":" "}
+{"line":92,"kind":"keyword.other","text":"assertion"}
+{"line":92,"kind":"other","text":" ReachesTheEnd:"}
+{"line":93,"kind":"other","text":"    opts = [t "}
+{"line":93,"kind":"keyword.control","text":"for"}
+{"line":93,"kind":"other","text":" t "}
+{"line":93,"kind":"keyword.other","text":"in"}
+{"line":93,"kind":"other","text":" nodes "}
+{"line":93,"kind":"keyword.control","text":"if"}
+{"line":93,"kind":"other","text":" t.status == Marker.NONE]"}
+{"line":94,"kind":"other","text":"    "}
+{"line":94,"kind":"keyword.control","text":"return"}
+{"line":94,"kind":"other","text":" "}
+{"line":94,"kind":"method","text":"len"}
+{"line":94,"kind":"other","text":"(opts) == "}
+{"line":94,"kind":"constant.numeric","text":"0"}
+{"line":94,"kind":"other","text":"  "}
+{"line":94,"kind":"comment","text":"# trailing comment"}

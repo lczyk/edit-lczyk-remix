@@ -1,0 +1,95 @@
+\x1b[94m---\x1b[m
+\x1b[32m# frontmatter is yaml\x1b[m
+options:
+  max_actions: \x1b[92m40\x1b[m
+action_options:
+  Scroll:
+    max_actions: \x1b[92m2\x1b[m
+deadlock_detection: \x1b[94mfalse\x1b[m
+\x1b[94m---\x1b[m
+
+\x1b[32m# A comment after the frontmatter.\x1b[m
+MAX_VERSION = \x1b[92m3\x1b[m
+LEN = {\x1b[92m0\x1b[m: \x1b[92m1\x1b[m, \x1b[92m1\x1b[m: \x1b[92m5\x1b[m, \x1b[92m2\x1b[m: \x1b[92m1\x1b[m, \x1b[92m3\x1b[m: \x1b[92m3\x1b[m}
+RATE = \x1b[92m1.5e-3\x1b[m
+MASK = \x1b[92m0xff_00\x1b[m
+NAME = \x1b[91m'single'\x1b[m
+LABEL = \x1b[91m"double with \\"escape\\""\x1b[m
+DOC = \x1b[91m"""triple\x1b[m
+\x1b[91mquoted\x1b[m
+\x1b[91mstring"""\x1b[m
+RAW = \x1b[91mr'''prefixed\x1b[m
+\x1b[91mtriple'''\x1b[m
+
+Marker = \x1b[93menum\x1b[m(\x1b[91m'NONE'\x1b[m, \x1b[91m'MODIFIED'\x1b[m, \x1b[91m'ERROR'\x1b[m)
+Act = \x1b[93menum\x1b[m(\x1b[91m'INIT'\x1b[m, \x1b[91m'TICK'\x1b[m)
+
+\x1b[94mrole\x1b[m Node:
+    \x1b[94maction\x1b[m Init:
+        self.status = Marker.NONE
+        self.values = [\x1b[94mFalse\x1b[m \x1b[95mfor\x1b[m i \x1b[94min\x1b[m \x1b[93mrange\x1b[m(\x1b[92m3\x1b[m)]
+
+    \x1b[94matomic\x1b[m \x1b[94mfair\x1b[m \x1b[94maction\x1b[m Done:
+        id = \x1b[94mfair\x1b[m \x1b[94moneof\x1b[m \x1b[93mrange\x1b[m(\x1b[93mlen\x1b[m(self.values))
+        self.values[id] = \x1b[94mTrue\x1b[m
+        done.\x1b[93madd\x1b[m(self.__id__)
+
+    \x1b[94matomic\x1b[m \x1b[94mfunc\x1b[m \x1b[93mprocess\x1b[m(id):
+        \x1b[95mrequire\x1b[m id \x1b[94min\x1b[m self.values \x1b[94mand\x1b[m \x1b[94mnot\x1b[m self.done
+        self.status = Marker.MODIFIED
+        \x1b[95mreturn\x1b[m self.status
+
+\x1b[94maction\x1b[m Init:
+    live = \x1b[94moneof\x1b[m [\x1b[94mFalse\x1b[m, \x1b[94mTrue\x1b[m]
+    disk = \x1b[92m1\x1b[m
+    buf = \x1b[92m0\x1b[m
+    nodes = []
+    \x1b[95mfor\x1b[m i \x1b[94min\x1b[m \x1b[93mrange\x1b[m(\x1b[92m0\x1b[m, \x1b[92m2\x1b[m):
+        nodes.\x1b[93mappend\x1b[m(\x1b[93mNode\x1b[m(ID=i))
+    done = \x1b[93mset\x1b[m()
+
+\x1b[94matomic\x1b[m \x1b[94maction\x1b[m SourceChange:
+    \x1b[95mrequire\x1b[m disk != \x1b[94mNone\x1b[m \x1b[94mand\x1b[m disk < MAX_VERSION
+    disk += \x1b[92m1\x1b[m
+
+\x1b[94mserial\x1b[m \x1b[94maction\x1b[m Tick:
+    \x1b[95mif\x1b[m live:
+        \x1b[95mif\x1b[m disk == \x1b[94mNone\x1b[m:
+            marker = Marker.ERROR
+        \x1b[95melif\x1b[m disk != buf:
+            \x1b[93mload\x1b[m()
+    \x1b[95melse\x1b[m:
+        \x1b[95mpass\x1b[m
+
+\x1b[94mparallel\x1b[m \x1b[94maction\x1b[m Fanout:
+    \x1b[94many\x1b[m n \x1b[94min\x1b[m nodes:
+        n.\x1b[93mprocess\x1b[m(\x1b[92m0\x1b[m)
+
+\x1b[94matomic\x1b[m \x1b[94mfunc\x1b[m \x1b[93mload\x1b[m():
+    \x1b[95mif\x1b[m disk == \x1b[94mNone\x1b[m:
+        marker = Marker.ERROR
+        \x1b[95mreturn\x1b[m
+    buf = disk
+    \x1b[95mwhile\x1b[m buf > LEN[buf] - \x1b[92m1\x1b[m:
+        buf -= \x1b[92m1\x1b[m
+    marker = Marker.NONE
+
+\x1b[94minvariant\x1b[m NeverNegative:
+    \x1b[95mreturn\x1b[m buf >= \x1b[92m0\x1b[m
+
+\x1b[94malways\x1b[m \x1b[94massertion\x1b[m TopInsideBuffer:
+    \x1b[95mreturn\x1b[m \x1b[92m0\x1b[m <= buf \x1b[94mand\x1b[m buf < LEN[buf]
+
+\x1b[94mtransition\x1b[m \x1b[94massertion\x1b[m \x1b[93mLoadKeepsViewport\x1b[m(before, after):
+    \x1b[95mif\x1b[m after.buf == before.buf:
+        \x1b[95mreturn\x1b[m \x1b[94mTrue\x1b[m
+    \x1b[95mreturn\x1b[m (after.buf == \x1b[93mmin\x1b[m(before.buf, LEN[after.buf] - \x1b[92m1\x1b[m)
+            \x1b[94mor\x1b[m after.buf == \x1b[92m0\x1b[m)
+
+\x1b[94malways\x1b[m \x1b[94meventually\x1b[m \x1b[94massertion\x1b[m LiveCatchesUp:
+    \x1b[95mreturn\x1b[m \x1b[94mnot\x1b[m live \x1b[94mor\x1b[m disk == \x1b[94mNone\x1b[m \x1b[94mor\x1b[m buf == disk
+
+\x1b[94mexists\x1b[m \x1b[94massertion\x1b[m ReachesTheEnd:
+    opts = [t \x1b[95mfor\x1b[m t \x1b[94min\x1b[m nodes \x1b[95mif\x1b[m t.status == Marker.NONE]
+    \x1b[95mreturn\x1b[m \x1b[93mlen\x1b[m(opts) == \x1b[92m0\x1b[m  \x1b[32m# trailing comment\x1b[m
+

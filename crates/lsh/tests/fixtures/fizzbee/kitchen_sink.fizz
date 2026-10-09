@@ -1,0 +1,94 @@
+---
+# frontmatter is yaml
+options:
+  max_actions: 40
+action_options:
+  Scroll:
+    max_actions: 2
+deadlock_detection: false
+---
+
+# A comment after the frontmatter.
+MAX_VERSION = 3
+LEN = {0: 1, 1: 5, 2: 1, 3: 3}
+RATE = 1.5e-3
+MASK = 0xff_00
+NAME = 'single'
+LABEL = "double with \"escape\""
+DOC = """triple
+quoted
+string"""
+RAW = r'''prefixed
+triple'''
+
+Marker = enum('NONE', 'MODIFIED', 'ERROR')
+Act = enum('INIT', 'TICK')
+
+role Node:
+    action Init:
+        self.status = Marker.NONE
+        self.values = [False for i in range(3)]
+
+    atomic fair action Done:
+        id = fair oneof range(len(self.values))
+        self.values[id] = True
+        done.add(self.__id__)
+
+    atomic func process(id):
+        require id in self.values and not self.done
+        self.status = Marker.MODIFIED
+        return self.status
+
+action Init:
+    live = oneof [False, True]
+    disk = 1
+    buf = 0
+    nodes = []
+    for i in range(0, 2):
+        nodes.append(Node(ID=i))
+    done = set()
+
+atomic action SourceChange:
+    require disk != None and disk < MAX_VERSION
+    disk += 1
+
+serial action Tick:
+    if live:
+        if disk == None:
+            marker = Marker.ERROR
+        elif disk != buf:
+            load()
+    else:
+        pass
+
+parallel action Fanout:
+    any n in nodes:
+        n.process(0)
+
+atomic func load():
+    if disk == None:
+        marker = Marker.ERROR
+        return
+    buf = disk
+    while buf > LEN[buf] - 1:
+        buf -= 1
+    marker = Marker.NONE
+
+invariant NeverNegative:
+    return buf >= 0
+
+always assertion TopInsideBuffer:
+    return 0 <= buf and buf < LEN[buf]
+
+transition assertion LoadKeepsViewport(before, after):
+    if after.buf == before.buf:
+        return True
+    return (after.buf == min(before.buf, LEN[after.buf] - 1)
+            or after.buf == 0)
+
+always eventually assertion LiveCatchesUp:
+    return not live or disk == None or buf == disk
+
+exists assertion ReachesTheEnd:
+    opts = [t for t in nodes if t.status == Marker.NONE]
+    return len(opts) == 0  # trailing comment
