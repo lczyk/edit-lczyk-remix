@@ -1,0 +1,185 @@
+---
+# the environment and the user are bounded so the state space is finite;
+# tick is left unbounded (and fair) so the liveness check can run.
+options:
+  max_actions: 40
+action_options:
+  Scroll:
+    max_actions: 2
+  PressR:
+    max_actions: 2
+  SourceVanish:
+    max_actions: 2
+---
+
+# eat viewer: reload / watch / exec -- a fizzbee model.
+#
+# This models the tty viewer's reload state machine: the static view
+# (`eat FILE`, `eat -x -- CMD`) and the live view (`-w`). The cli parsing
+# is a pure function and is not modelled; see doc/src/eat.md for that.
+#
+# Run it with the docker image (no local install needed):
+#
+#     make spec-check
+#
+# or by hand, from this directory:
+#
+#     docker run --rm -v "$PWD":/workspace ghcr.io/fizzbee-io/fizzbee:latest eat-viewer.fizz
+#
+# A failing run prints the counterexample trace and writes out/ next to
+# this file; out/ is gitignored.
+#
+# Requirements (ears form). Each is tied to a line or a property below.
+#
+# vocabulary:
+# - "source" is the file on disk (`eat FILE`) or the stdout of the command
+#   (`eat -x -- CMD`). both are read in full on every load.
+# - "buffer" is what the viewer shows.
+# - "load" = read the source, replace the buffer, keep the viewport.
+#
+# R1:  THE SYSTEM SHALL load the source once at startup.
+# R2:  WHEN the user presses `r`, THE SYSTEM SHALL load the source.
+# R3:  WHILE `-w` is given, WHEN the poll interval elapses and the source
+#      differs from the buffer, THE SYSTEM SHALL load the source.
+# R3b: WHILE `-w` is given, WHEN the poll interval elapses and the source
+#      equals the buffer, THE SYSTEM SHALL NOT touch the buffer.
+# R4:  WHILE `-w` is not given, THE SYSTEM SHALL NOT load the source without
+#      the user pressing `r`.
+# R5:  WHILE `-w` is not given, WHEN the poll interval elapses and the source
+#      differs from the buffer, THE SYSTEM SHALL show a "modified" marker.
+# R5b: WHEN the buffer is loaded, THE SYSTEM SHALL clear the "modified" marker.
+# R6:  WHEN a load is performed, THE SYSTEM SHALL keep the viewport's top row,
+#      clamped to the new buffer length.
+# R7:  IF the source is unavailable (file missing, command failed), THEN
+#      THE SYSTEM SHALL keep the previous buffer and show an "error" marker.
+# R7b: WHEN a load succeeds, THE SYSTEM SHALL clear the "error" marker.
+# R8:  THE SYSTEM SHALL ensure the viewport's top row is always inside the
+#      buffer.
+# R9:  WHILE `-w` is given, THE SYSTEM SHALL ensure the buffer eventually
+#      matches the source whenever the source stops changing.
+#
+# Decisions the model forced, not stated in the requirements:
+# - the marker is a snapshot taken at the tick, so it can lag the source by
+#   up to one poll interval (TickRefreshesMarker is on the tick, not always).
+# - "modified" and "error" are one slot, not two independent notes.
+# - `r` on an unavailable source is not a load: the buffer stays, the
+#   marker says error, and in live mode the next tick after recovery loads.
+#
+# Model: the source is a monotonic version number; None means unavailable.
+# LEN gives the buffer length of each version so the viewport clamp is
+# exercised. version 0 is the empty buffer before the first load.
+
+MAX_VERSION = 3
+LEN = {0: 1, 1: 3, 2: 1, 3: 2}
+
+Marker = enum('NONE', 'MODIFIED', 'ERROR')
+Act = enum('INIT', 'SOURCE_CHANGE', 'SOURCE_VANISH', 'TICK', 'PRESS_R', 'SCROLL')
+
+action Init:
+    live = oneof [False, True]
+    disk = 1
+    buf = 0
+    top = 0
+    marker = Marker.NONE
+    last = Act.INIT
+    loads = 0
+    r_presses = 0
+    # R1: startup load, inlined because funcs cannot see globals from Init
+    loads = 1
+    buf = disk
+
+# --- environment --------------------------------------------------------
+
+atomic action SourceChange:
+    require disk != None and disk < MAX_VERSION
+    disk += 1
+    last = Act.SOURCE_CHANGE
+
+atomic action SourceVanish:
+    require disk != None
+    disk = None
+    last = Act.SOURCE_VANISH
+
+# --- user ---------------------------------------------------------------
+
+atomic action PressR:             # R2
+    r_presses += 1
+    last = Act.PRESS_R
+    load()
+
+atomic action Scroll:
+    top = oneof range(LEN[buf])
+    last = Act.SCROLL
+
+# --- viewer -------------------------------------------------------------
+
+atomic fair action Tick:
+    last = Act.TICK
+    if live:
+        if disk == None:
+            marker = Marker.ERROR  # R7, even without a change
+        elif disk != buf:
+            load()                 # R3
+        # R3b: equal -> nothing
+    else:
+        if disk == None:
+            marker = Marker.ERROR
+        elif disk != buf:
+            marker = Marker.MODIFIED   # R5
+
+atomic func load():
+    if disk == None:
+        marker = Marker.ERROR          # R7
+        return
+    loads += 1
+    buf = disk
+    top = min(top, LEN[buf] - 1)       # R6
+    marker = Marker.NONE               # R5b, R7b
+
+# --- properties ---------------------------------------------------------
+
+always assertion TopInsideBuffer:      # R8
+    return 0 <= top and top < LEN[buf]
+
+always assertion StaticLoadsOnlyOnR:   # R4 (the init load is the +1)
+    return live or loads <= r_presses + 1
+
+# the marker is a snapshot taken at the tick, so between ticks it may lag
+# the source by up to one poll interval. the property is on the tick.
+transition assertion TickRefreshesMarker(before, after):
+    if after.last != Act.TICK or after.live:
+        return True
+    if after.disk == None:
+        return after.marker == Marker.ERROR
+    if after.disk != after.buf:
+        return after.marker == Marker.MODIFIED
+    return after.marker == before.marker
+
+transition assertion LoadClearsMarker(before, after):   # R5b, R7b
+    return after.loads == before.loads or after.marker == Marker.NONE
+
+always assertion LiveNeverShowsModified:
+    return not live or marker != Marker.MODIFIED
+
+transition assertion BufferOnlyChangesOnLoad(before, after):
+    if after.buf == before.buf:
+        return True
+    return after.last in [Act.PRESS_R, Act.TICK] and after.loads == before.loads + 1
+
+transition assertion LoadKeepsViewport(before, after):   # R6
+    if after.loads == before.loads:
+        return True
+    return after.top == min(before.top, LEN[after.buf] - 1)
+
+transition assertion UnavailableKeepsBuffer(before, after):   # R7
+    if before.disk != None:
+        return True
+    return after.buf == before.buf or after.last == Act.SOURCE_CHANGE
+
+transition assertion NoSpuriousLoad(before, after):   # R3b
+    if after.loads == before.loads:
+        return True
+    return before.disk != before.buf or after.last == Act.PRESS_R
+
+always eventually assertion LiveCatchesUp:   # R9
+    return not live or disk == None or buf == disk

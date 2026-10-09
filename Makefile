@@ -120,6 +120,17 @@ docs-serve:  ## Serve the mdBook knowledge base with live reload
 docs-clean:  ## Remove the built mdBook output
 	rm -rf doc/book
 
+.PHONY: spec-check
+spec-check:  ## Model-check the fizzbee specs under doc/spec/ (needs docker)
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "error: docker not installed (the fizzbee checker runs from ghcr.io/fizzbee-io/fizzbee)."; \
+		exit 1; \
+	fi
+	@for f in doc/spec/*.fizz; do \
+		echo "== $$f"; \
+		docker run --rm -v "$$(pwd)/doc/spec":/workspace ghcr.io/fizzbee-io/fizzbee:latest "$$(basename "$$f")" || exit 1; \
+	done
+
 .PHONY: verify
 verify: fmt-check clippy test  ## Run the full pre-commit gate (fmt, clippy, test)
 	@echo "All checks passed."
