@@ -54,12 +54,6 @@ pub(crate) struct Cli {
     #[argh(option, default = "WrapMode::Auto")]
     pub(crate) wrap: WrapMode,
 
-    /// follow file appends and emit new lines as they arrive (like `tail -F`).
-    /// optional value sets the poll interval, e.g. `-f 30s`, `-f 500ms`,
-    /// `-f 2` (bare number = seconds). bare `-f` defaults to 250ms.
-    #[argh(option, short = 'f')]
-    pub(crate) follow: Option<FollowDuration>,
-
     /// run a command and show its stdout instead of reading files. the
     /// positional arguments are the command, so put `--` before it:
     /// `eat -x -- git diff main..HEAD`
@@ -192,7 +186,7 @@ impl WrapMode {
     }
 }
 
-/// poll interval for `--follow`, parsed off the cli. accepts `30s`, `500ms`,
+/// a poll interval parsed off the cli. accepts `30s`, `500ms`,
 /// `1m`, `1.5s`, or a bare number (= seconds). minimum 50ms; smaller values
 /// are silently clamped. zero / negative / non-finite values are rejected.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -203,7 +197,7 @@ impl FollowDuration {
     /// redraw + tick; anything below is just busy-looping w/out user value.
     pub const MIN: std::time::Duration = std::time::Duration::from_millis(50);
 
-    /// default poll interval applied when `-f` is given w/out a value.
+    /// default poll interval applied when the flag is given w/out a value.
     pub const DEFAULT: std::time::Duration = std::time::Duration::from_millis(250);
 
     pub fn parse(value: &str) -> Result<Self, String> {
@@ -368,10 +362,10 @@ pub(crate) fn parse_cli() -> Cli {
     }
 }
 
-/// The argv as argh will see it: `--eat` stripped, and the two options
-/// that take an optional value (`-L`, `-f`) given their default when the
-/// next token is not one. Everything after `--` passes through untouched,
-/// since from there on the tokens are paths or, with `-x`, a command.
+/// The argv as argh will see it: `--eat` stripped, and `-L` given its
+/// default format when the next token is not one. Everything after `--`
+/// passes through untouched, since from there on the tokens are paths or,
+/// with `-x`, a command.
 fn rewrite_argv(argv: &[String], via_eat_flag: bool) -> Vec<String> {
     let mut rewritten: Vec<String> = Vec::with_capacity(argv.len() + 1);
     rewritten.push(argv[0].clone());
@@ -392,25 +386,6 @@ fn rewrite_argv(argv: &[String], via_eat_flag: bool) -> Vec<String> {
                 rewritten.push("pretty".to_string());
             }
             i += 1;
-        } else if a == "-f" || a == "--follow" {
-            // argh treats `-f` as an option taking a value -- supply the default
-            // when the next token isn't parseable as a duration. lets users type
-            // bare `-f` (most common) and still combine with explicit `-f 30s`.
-            rewritten.push(a.clone());
-            let next = argv.get(i + 1);
-            let has_dur = next.is_some_and(|n| FollowDuration::parse(n).is_ok());
-            if has_dur {
-                rewritten.push(next.unwrap().clone());
-                i += 2;
-            } else {
-                let env_default = std::env::var("EAT_FOLLOW_INTERVAL_MS")
-                    .ok()
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .map(|ms| format!("{ms}ms"))
-                    .unwrap_or_else(|| "250ms".to_string());
-                rewritten.push(env_default);
-                i += 1;
-            }
         } else {
             rewritten.push(a.clone());
             i += 1;
@@ -440,17 +415,17 @@ mod tests {
     }
 
     #[test]
-    fn rewrite_gives_bare_f_a_duration() {
-        let out = rewrite_argv(&argv(&["eat", "-f", "x.log"]), false);
-        assert_eq!(out, argv(&["eat", "-f", "250ms", "x.log"]));
-        let out = rewrite_argv(&argv(&["eat", "-f", "2s", "x.log"]), false);
-        assert_eq!(out, argv(&["eat", "-f", "2s", "x.log"]));
+    fn rewrite_gives_bare_list_languages_a_format() {
+        let out = rewrite_argv(&argv(&["eat", "-L"]), false);
+        assert_eq!(out, argv(&["eat", "-L", "pretty"]));
+        let out = rewrite_argv(&argv(&["eat", "-L", "json"]), false);
+        assert_eq!(out, argv(&["eat", "-L", "json"]));
     }
 
     #[test]
     fn rewrite_leaves_everything_after_the_separator_alone() {
-        let out = rewrite_argv(&argv(&["eat", "-x", "--", "tail", "-f", "x.log"]), false);
-        assert_eq!(out, argv(&["eat", "-x", "--", "tail", "-f", "x.log"]));
+        let out = rewrite_argv(&argv(&["eat", "-x", "--", "ls", "-L"]), false);
+        assert_eq!(out, argv(&["eat", "-x", "--", "ls", "-L"]));
         let out = rewrite_argv(&argv(&["eat", "--", "-L"]), false);
         assert_eq!(out, argv(&["eat", "--", "-L"]));
     }

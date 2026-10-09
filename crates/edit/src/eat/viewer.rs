@@ -1,14 +1,7 @@
-//! Shared scaffolding for eat's two alt-screen viewers.
-//!
-//! The snapshot and follow views want the same keys but do different
-//! things with them: both scroll, but follow also has to mirror every
-//! movement onto its pause offset, and its wrap toggle has to re-anchor
-//! the viewport. So what is shared here is the *classification* -- which
-//! key means what, including the vi-style aliases and the platform
-//! primary modifier -- while each view keeps its own interpretation.
-//!
-//! Before this split the two dispatch chains were maintained by hand in
-//! parallel, and every key added had to be written twice.
+//! Scaffolding for eat's alt-screen viewer: the key classification --
+//! which key means what, including the vi-style aliases and the platform
+//! primary modifier -- and the terminal session. The view in
+//! [`super::views`] keeps the interpretation.
 
 use crate::helpers::CoordType;
 use crate::input::{InputKey, kbmod, vk};
@@ -32,7 +25,7 @@ pub(crate) enum ViewerKey {
     SelectAll,
     /// `w` -- toggle word wrap.
     ToggleWrap,
-    /// `r` -- reload from disk. Only the snapshot view acts on it.
+    /// `r` -- load the source again.
     Reload,
     /// Signed line count: negative is up.
     ScrollLines(CoordType),

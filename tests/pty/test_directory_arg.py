@@ -106,15 +106,6 @@ def eat_lists_a_directory_among_files():
 
 
 @test
-def eat_follow_refuses_a_directory():
-    with tempfile.TemporaryDirectory() as tmp:
-        rc, out = _run_cli(["--eat", "-f", tmp])
-        expect(rc == 1, f"expected exit 1, got {rc}: {out!r}")
-        expect(f"{tmp}: Is a directory".encode() in out,
-               f"expected the path in the message, got: {out!r}")
-
-
-@test
 def eat_on_a_tty_pages_the_listing_rather_than_opening_the_viewer():
     with tempfile.TemporaryDirectory() as tmp:
         _eat_fixture(tmp)
