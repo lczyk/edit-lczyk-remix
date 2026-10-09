@@ -50,8 +50,9 @@ action_options:
 # R5b: WHEN the buffer is loaded, THE SYSTEM SHALL clear the "modified" marker.
 # R6:  WHEN a load is performed, THE SYSTEM SHALL keep the viewport's top row,
 #      pulled back only as far as keeps the last row on the bottom edge.
-# R7:  IF the source is unavailable (file missing, command failed), THEN
-#      THE SYSTEM SHALL keep the previous buffer and show an "error" marker.
+# R7:  IF the source is unavailable (file missing, command failed without
+#      output), THEN THE SYSTEM SHALL keep the previous buffer and show an
+#      "error" marker.
 # R7b: WHEN a load succeeds, THE SYSTEM SHALL clear the "error" marker.
 # R8:  THE SYSTEM SHALL ensure the viewport's top row is always inside the
 #      buffer.
@@ -64,6 +65,9 @@ action_options:
 # - "modified" and "error" are one slot, not two independent notes.
 # - `r` on an unavailable source is not a load: the buffer stays, the
 #   marker says error, and in live mode the next tick after recovery loads.
+# - outside the model: a command that exits nonzero but produces output
+#   (diff, grep) is loaded, and the marker notes the exit code anyway.
+#   that is a load with a note, not an error; the invariants are unchanged.
 #
 # Model: the source is a monotonic version number; None means unavailable.
 # LEN gives the buffer length of each version and BODY the viewport height,

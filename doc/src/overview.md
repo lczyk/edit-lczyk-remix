@@ -6,7 +6,7 @@ This book collects notes that don't belong in the source tree itself: terminal i
 
 ## Sections
 
-- [eat](./eat.md) -- the `bat`-like `cat` persona: output paths, options, paging, follow mode, viewer keys.
+- [eat](./eat.md) -- the `bat`-like `cat` persona: output paths, options, paging, exec and live modes, viewer keys.
 - [Quirks](./quirks.md) -- `--quirks=...` / `EDIT_QUIRKS=...` behaviour toggles. Positive canonical names (`safe-filenames`, `unicode`, `color`, `animations`, `create`); `NAME` enables, `-NAME` disables.
 - [Keybindings](./keybindings.md) -- config file format, what's bindable, chord syntax, the Cmd modifier on macOS.
 - [Terminal Keyboard](./terminal-keyboard.md) -- why some chords (`Cmd+C`, `Option+Backspace`, ...) don't reach `edit` out of the box, and how to fix it per terminal.

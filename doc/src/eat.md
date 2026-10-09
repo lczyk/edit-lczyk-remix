@@ -18,8 +18,11 @@ stdout is a terminal:
 | stdout | invocation | renderer |
 |---|---|---|
 | not a tty | anything | ansi stream -- highlight, write through. Pipes, redirects and the pager all land here. |
-| tty | single file (not a directory), no `--plain`, no `--line-range` | alt-screen snapshot viewer |
-| tty | `-f` / `--follow` | alt-screen follow viewer over a growing file |
+| tty | single file (not a directory), no `--plain`, no `--line-range` | alt-screen viewer |
+| tty | `-x -- CMD`, no `--plain`, no `--line-range` | the same viewer over the command's output |
+
+`-w` makes the viewer live (see [Live mode](#live-mode)); it never changes
+which renderer is picked, and errors where the viewer would not be.
 
 `--plain` (`-p`) drops highlighting, decorations and paging -- it makes `eat`
 behave like plain `cat`.
@@ -38,7 +41,8 @@ than blocking on stdin. With piped stdin and no arguments, it reads stdin. Use
     --color <WHEN>      auto (default) | always | never
     --paging <WHEN>     auto (default) | always | never
     --wrap <WHEN>       auto (default) | always | never -- never chops instead
--f, --follow [<DUR>]    follow appends, like `tail -F`
+-x, --exec              the positionals are a command; show its stdout
+-w, --watch [<DUR>]     live view: load the source again whenever it changes
 -L, --list-languages    print known languages (pretty | plain | json)
     --version
 ```
@@ -77,26 +81,65 @@ content fits one screen), plus a chop flag when `--wrap=never`.
 Paging forces colour on: through the pipe to the pager, the tty check would
 otherwise read false and strip it.
 
-### Follow mode
+### Exec mode
 
-`-f` polls the file for appends. The optional value sets the interval and
-accepts `500ms`, `30s`, `1m`, `1.5s`, or a bare number meaning seconds. Bare
-`-f` defaults to 250 ms, or to `EAT_FOLLOW_INTERVAL_MS` when that is set.
-Intervals below 50 ms are clamped.
+`-x` turns the positionals into a command and shows its stdout in place of a
+file. Put `--` before the command, or its own flags are read as `eat`'s:
 
-Follow mode is deliberately narrow -- these combinations error with exit code
-2 rather than half-working:
+```sh
+eat -x -- git diff main..HEAD
+eat -x -l diff -- git diff main..HEAD --stat
+eat -x -- sh -c 'journalctl -u foo | tail -200'
+```
 
-- no path, or `-` (stdin is not supported)
-- more than one path
-- `--line-range`
-- `--plain`
+The command is run as given, not through a shell, with stdin closed and
+stderr captured. On a tty the viewer shows the output and `r` runs the
+command again. Off a tty the output streams through like a file and the
+command's exit code is `eat`'s, with its stderr forwarded. There is no path
+to detect a language from, so without `-l` the output is sniffed (shebang,
+then content), and most command output lands on Plain Text.
 
-`--paging` is ignored while following.
+A rerun that fails without producing anything keeps what is on screen and
+puts the reason in the header: the exit code and the last stderr line, as in
+`[exit 128: fatal: bad revision 'nope']`. A command that exits nonzero *with*
+output (`diff`, `grep`) is shown, and the header still notes the exit code.
+
+### Live mode
+
+`-w` makes the viewer load the source again whenever it changes, as if `r`
+had been pressed: a file is stat'ed every interval and reloaded on a change,
+a command (`-w -x -- CMD`) is run every interval and reloaded when its output
+differs. The viewport stays where the reader left it, pulled back only as far
+as keeps the last row on the bottom edge when the content got shorter.
+
+```sh
+eat -w FILE                        # every second
+eat -w 500ms -x -- git diff        # every half second
+```
+
+The optional value accepts `500ms`, `30s`, `1m`, `1.5s`, or a bare number
+meaning seconds. Bare `-w` polls every second, or every
+`EAT_WATCH_INTERVAL_MS` milliseconds when that is set. Intervals below 50 ms
+are clamped. The header says `live 500ms` while it is on.
+
+Live mode needs the viewer, so these error with exit code 2 rather than
+half-working: stdout not a tty, `--plain`, `--line-range`, no path, `-`,
+more than one path, a directory.
+
+Without `-w` the viewer still polls a file every two seconds, but only to
+raise a `[modified on disk]` marker in the header; the buffer moves on `r`
+alone. The header's marker slot shows one thing at a time: the modified
+marker, or what the last load had to say.
+
+The reload states -- when the buffer moves, what the marker says, where the
+viewport lands -- are modelled in
+[`doc/spec/eat-viewer.fizz`](https://github.com/lczyk/edit-lczyk-remix/blob/lczyk-remix/doc/spec/eat-viewer.fizz),
+a [FizzBee](https://fizzbee.io) spec with the requirements in its header;
+`make spec-check` runs the model checker through its docker image.
 
 ## Viewer keys
 
-Both tty viewers share one keymap. vi aliases mirror `less`.
+vi aliases mirror `less`.
 
 | keys | action |
 |---|---|
@@ -107,7 +150,7 @@ Both tty viewers share one keymap. vi aliases mirror `less`.
 | `g`, `Home` | jump to top |
 | `G`, `End` | jump to bottom |
 | `w` | toggle word wrap |
-| `r` | reload from disk (snapshot view only) |
+| `r` | load the source again: re-read the file, or re-run the command |
 | `Cmd+C` / `Ctrl+C` | copy the selection |
 | `Cmd+A` / `Ctrl+A` | select all |
 
@@ -163,6 +206,5 @@ concatenation with no headers. `--plain` never emits headers.
 ## Environment
 
 - `EAT_PAGER` -- pager override, beats `PAGER`.
-- `EAT_FOLLOW_INTERVAL_MS` -- default poll interval for bare `-f`.
-- `EAT_FOLLOW_NO_TUI=1` -- force the streaming follow path even on a tty.
+- `EAT_WATCH_INTERVAL_MS` -- poll interval for bare `-w`, in milliseconds.
 - `FORCE_COLOR` / `NO_COLOR` -- see [Colour](#colour).

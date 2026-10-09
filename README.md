@@ -19,7 +19,8 @@ or to any distro.
 - **`eat [FILES...]`** -- a `bat`-flavoured syntax-highlighting `cat`. Same
   binary, busybox-style: `make install` drops an `eat -> edit` symlink, and
   `edit --eat` works too. Handles paging, line ranges, line numbers, wrapping,
-  and `-f` follow mode (`tail -F`, but highlighted). See [doc/src/eat.md](doc/src/eat.md).
+  a command's output in place of a file (`eat -x -- git diff`) and a live
+  view of either (`-w`). See [doc/src/eat.md](doc/src/eat.md).
 - **`lsh`** -- the in-tree syntax-highlighting compiler and runtime, with a few
   dozen language definitions in [crates/lsh/definitions/](crates/lsh/definitions/).
   `lsh-bin` is the CLI for debugging them.

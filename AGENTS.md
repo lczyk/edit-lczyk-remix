@@ -28,6 +28,7 @@ Use the [Makefile](Makefile) -- do not invoke `cargo` directly in routine work. 
 - `make test-icu` -- test suite with ICU wired up; fails rather than skipping the search tests.
 - `make cover` / `make cover-open` -- coverage via `cargo-llvm-cov`.
 - `make docs-serve` / `make docs-build` -- knowledge base under [`doc/`](doc/) (mdBook).
+- `make spec-check` -- model-check the FizzBee specs under [`doc/spec/`](doc/spec/) (needs docker).
 
 `make verify` does **not** run the PTY tests -- those drive the built binary through a pseudo-terminal and need Python plus a fresh `make build`:
 
@@ -118,7 +119,7 @@ Record shape + field reference: [doc/src/dev-input-log.md](doc/src/dev-input-log
 - **[crates/edit/src/term.rs](crates/edit/src/term.rs)** -- alt-screen mode switch, OSC 4/10/11 palette probe, ambiguous-width probe, kitty kbd proto push; `RestoreModes` is the inverse-on-drop guard. Used by `bin/edit/main.rs` and by `edit::mount`.
 - **[crates/edit/src/mount.rs](crates/edit/src/mount.rs)** -- thin external mount api for the tui: `mount(opts, draw_fn)` owns `Tui::new` + `term::setup` + the input/render loop + alt-screen restore. Used by `eat`'s alt-screen views; `bin/edit/main.rs` keeps its own loop (its module doc says why). `flush_clipboard_to_host` is shared by both.
 - **[crates/edit/src/watch.rs](crates/edit/src/watch.rs)** -- poll-based file-change detection. One `FileStat` answers both "did it change" (equality) and "how" (`classify`); rotation detection needs the head-byte sample, since a same-length rewrite is invisible to size and inode alone.
-- **[crates/edit/src/eat/](crates/edit/src/eat/)** -- the `eat` persona: `cli.rs` args, `detect.rs` language resolution, `stream.rs` the non-tty ansi pipeline, `views.rs` the two alt-screen views over `mount`, `viewer.rs` their shared keymap + terminal session. Reachable via argv0 dispatch in `bin/edit/main.rs` (`name == "eat"` or `--eat`); the `eat` binary is a `make install`-time symlink to `edit`, not a separate cargo target.
+- **[crates/edit/src/eat/](crates/edit/src/eat/)** -- the `eat` persona: `cli.rs` args, `detect.rs` language resolution, `stream.rs` the non-tty ansi pipeline, `exec.rs` the `-x` command runner, `views.rs` the alt-screen view over `mount` (static, or live with `-w`), `viewer.rs` its keymap + terminal session. The view's reload states are modelled in [doc/spec/eat-viewer.fizz](doc/spec/eat-viewer.fizz); `make spec-check` runs the model checker. Reachable via argv0 dispatch in `bin/edit/main.rs` (`name == "eat"` or `--eat`); the `eat` binary is a `make install`-time symlink to `edit`, not a separate cargo target.
 - **[crates/edit/src/langlist.rs](crates/edit/src/langlist.rs)** -- the `-L` listing, shared by both personas rather than living under `eat`.
 - **[crates/edit/src/bin/edit/](crates/edit/src/bin/edit/)** -- the binary. ~90% UI and business logic. `cli.rs` is the argv surface, `modals.rs` the global dialogs (one `Option<Modal>`, so two can't paint at once).
 
