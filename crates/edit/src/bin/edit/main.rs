@@ -52,7 +52,7 @@ fn main() -> process::ExitCode {
     if name == "eat" {
         return edit::eat::main();
     }
-    if env::args_os().any(|a| a == "--eat") {
+    if env::args_os().skip(1).take_while(|a| a != "--").any(|a| a == "--eat") {
         // SAFETY: single-threaded at this point in main.
         unsafe { std::env::set_var("EDIT_EAT_VIA_FLAG", "1") };
         return edit::eat::main();

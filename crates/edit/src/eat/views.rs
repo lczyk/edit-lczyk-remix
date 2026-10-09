@@ -30,21 +30,88 @@ use std::time::{Duration, Instant};
 
 use lsh::runtime::Language;
 
+use crate::eat::exec;
 use crate::eat::viewer::{self, ViewerKey};
 use crate::watch::{self, FileDelta, FileStat};
 
 // --- snapshot driver -----------------------------------------------------
 
-/// Run the snapshot tui pager. Reads the file into a [`TextBuffer`]
+/// What the snapshot view shows: a file re-read from disk, or the stdout
+/// of a command re-run, on every load.
+pub enum Source {
+    File(PathBuf),
+    Command(Vec<String>),
+}
+
+/// The header's one marker slot. `Modified` is the file poll noticing a
+/// change behind the viewer; `Note` is what the last load had to say --
+/// a command that did not exit 0, or a source that could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Marker {
+    None,
+    Modified,
+    Note(String),
+}
+
+impl Source {
+    fn label(&self) -> String {
+        match self {
+            Source::File(path) => path.display().to_string(),
+            Source::Command(argv) => exec::label(argv),
+        }
+    }
+
+    /// The file's stat for the change poll; a command has nothing to poll.
+    fn stat(&self) -> Option<FileStat> {
+        match self {
+            Source::File(path) => FileStat::from_path(path).ok(),
+            Source::Command(_) => None,
+        }
+    }
+
+    /// Replace the buffer with the source. `Err` is the note to show and
+    /// means the buffer was left alone: a file that could not be opened, or
+    /// a command that failed without producing anything. A command that
+    /// exits nonzero with output (`diff`, `grep`) is loaded, and the note
+    /// still says so.
+    fn load(&self, b: &mut crate::buffer::TextBuffer) -> Result<Option<String>, String> {
+        match self {
+            Source::File(path) => {
+                let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+                b.read_file(&mut f).map_err(|e| e.to_string())?;
+                Ok(None)
+            }
+            Source::Command(argv) => {
+                let out = exec::run(argv).map_err(|e| e.to_string())?;
+                let note = (!out.status.success()).then(|| exec::failure_note(&out));
+                if out.stdout.is_empty()
+                    && let Some(note) = note
+                {
+                    return Err(note);
+                }
+                b.read_from(&mut &out.stdout[..], Some(out.stdout.len()))
+                    .map_err(|e| e.to_string())?;
+                Ok(note)
+            }
+        }
+    }
+}
+
+/// Run the snapshot tui pager. Loads the source into a [`TextBuffer`]
 /// (marked read-only) and mounts edit's tui via [`crate::mount::mount`].
-/// Textarea handles cursor, scroll, selection natively. `q` exits, `w`
-/// toggles wrap, Left/Right scroll horizontally while wrap is off.
+/// Textarea handles cursor, scroll, selection natively. `q` exits, `r`
+/// reloads, `w` toggles wrap, Left/Right scroll horizontally while wrap is
+/// off.
+///
+/// `lang` is `None` when nothing but the content can settle the language
+/// (a command's output with no `-l`); it is then sniffed after the first
+/// load.
 ///
 /// Scope dropped (TODO(lczyk)):
 /// - `--color=never` override. edit's tui has no plain-mode toggle yet.
 pub fn run_snapshot(
-    path: PathBuf,
-    lang: &'static Language,
+    source: Source,
+    lang: Option<&'static Language>,
     show_numbers: bool,
     _use_color: bool,
     wrap: bool,
@@ -58,12 +125,19 @@ pub fn run_snapshot(
 
     let buf =
         TextBuffer::new_rc(false).map_err(|e| io::Error::other(format!("text buffer: {e:?}")))?;
+    let mut marker = Marker::None;
     {
         let mut b = buf.borrow_mut();
-        let with_path = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
-        let mut f =
-            std::fs::File::open(&path).map_err(|e| io::Error::new(e.kind(), with_path(&e)))?;
-        b.read_file(&mut f).map_err(|e| io::Error::other(with_path(&e)))?;
+        match source.load(&mut b) {
+            Ok(None) => {}
+            Ok(Some(note)) => marker = Marker::Note(note),
+            Err(note) => return Err(io::Error::other(format!("{}: {note}", source.label()))),
+        }
+        let lang = lang.unwrap_or_else(|| {
+            let head = b.read_forward(0);
+            let head = head[..head.len().min(4096)].to_vec();
+            lsh_defs::detect::resolve(None, lsh_defs::detect::NO_USER_ASSOCIATIONS, || head)
+        });
         b.set_language(lang);
         b.set_margin_enabled(show_numbers);
         b.set_word_wrap(wrap);
@@ -71,11 +145,10 @@ pub fn run_snapshot(
     }
 
     let mut wrap = wrap;
-    let path_label = path.display().to_string();
-    let mut captured_stat = FileStat::from_path(&path).ok();
-    let mut file_changed = false;
+    let path_label = source.label();
+    let mut captured_stat = source.stat();
     let mut last_disk_check = Instant::now();
-    let mut header = snapshot_header(&path_label, Instant::now(), file_changed);
+    let mut header = snapshot_header(&path_label, Instant::now(), &marker);
     let disk_check_interval = Duration::from_secs(2);
 
     let _session = viewer::ViewerSession::begin()?;
@@ -103,19 +176,21 @@ pub fn run_snapshot(
                     ctx.needs_rerender();
                 }
                 ViewerKey::Reload => {
-                    if let Ok(mut f) = std::fs::File::open(&path) {
+                    {
                         let mut b = buf.borrow_mut();
                         b.set_read_only(false);
-                        let _ = b.read_file(&mut f);
+                        marker = match source.load(&mut b) {
+                            Ok(None) => Marker::None,
+                            Ok(Some(note)) | Err(note) => Marker::Note(note),
+                        };
                         b.set_margin_enabled(show_numbers);
                         b.set_word_wrap(wrap);
                         b.set_read_only(true);
                         b.request_scroll_bound_to_tail();
                     }
-                    captured_stat = FileStat::from_path(&path).ok();
-                    file_changed = false;
+                    captured_stat = source.stat();
                     last_disk_check = Instant::now();
-                    header = snapshot_header(&path_label, Instant::now(), file_changed);
+                    header = snapshot_header(&path_label, Instant::now(), &marker);
                     ctx.needs_rerender();
                 }
                 ViewerKey::ScrollLines(d) => buf.borrow_mut().request_scroll_delta_y(d),
@@ -135,21 +210,26 @@ pub fn run_snapshot(
             }
         }
 
-        // disk-change poll. fires at most every `disk_check_interval`;
-        // mount's tick_interval keeps the loop awake to hit this branch
-        // even with no user input.
+        // disk-change poll, for a file source. fires at most every
+        // `disk_check_interval`; mount's tick_interval keeps the loop awake
+        // to hit this branch even with no user input.
         let now = Instant::now();
-        if now.duration_since(last_disk_check) >= disk_check_interval {
+        if captured_stat.is_some() && now.duration_since(last_disk_check) >= disk_check_interval {
             last_disk_check = now;
-            let now_stat = FileStat::from_path(&path).ok();
-            let changed = match (&captured_stat, &now_stat) {
-                (Some(a), Some(b)) => a != b,
+            let changed = match (&captured_stat, source.stat()) {
+                (Some(a), Some(b)) => *a != b,
                 (Some(_), None) => true,
                 _ => false,
             };
-            if changed != file_changed {
-                file_changed = changed;
-                header = snapshot_header(&path_label, Instant::now(), file_changed);
+            let next = match (&marker, changed) {
+                (Marker::Modified, false) => Marker::None,
+                (Marker::Note(_), _) => marker.clone(),
+                (_, true) => Marker::Modified,
+                (_, false) => Marker::None,
+            };
+            if next != marker {
+                marker = next;
+                header = snapshot_header(&path_label, Instant::now(), &marker);
                 ctx.needs_rerender();
             }
         }
@@ -168,10 +248,15 @@ pub fn run_snapshot(
     })
 }
 
-fn snapshot_header(path_label: &str, at: Instant, file_changed: bool) -> String {
-    let delta = if file_changed { "  [modified on disk]" } else { "" };
+/// The marker leads so a long path cannot push it off a narrow screen.
+fn snapshot_header(path_label: &str, at: Instant, marker: &Marker) -> String {
+    let lead = match marker {
+        Marker::None => String::new(),
+        Marker::Modified => "[modified on disk] ".to_string(),
+        Marker::Note(note) => format!("[{note}] "),
+    };
     format!(
-        "{path_label} @ {}{delta}  (q exit, r reload, w wrap, arrows/g/G/PgUp/PgDn scroll)",
+        "{lead}{path_label} @ {}  (q exit, r reload, w wrap, arrows/g/G/PgUp/PgDn scroll)",
         format_clock(at),
     )
 }

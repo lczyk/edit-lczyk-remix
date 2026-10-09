@@ -1,6 +1,8 @@
 //! File I/O: reading a file into the buffer (with encoding and
 //! line-ending detection) and writing it back out.
 
+use std::io::Read;
+
 use super::*;
 
 impl TextBuffer {
@@ -40,10 +42,18 @@ impl TextBuffer {
 
     /// Reads a UTF-8 file from disk into the text buffer.
     pub fn read_file(&mut self, file: &mut File) -> IoResult<()> {
+        let size_hint = file.metadata().ok().map(|m| m.len() as usize);
+        self.read_from(file, size_hint)
+    }
+
+    /// Reads UTF-8 text from any reader into the text buffer, replacing
+    /// what was there. `size_hint` is the total length when known; a pipe
+    /// or a socket passes `None`.
+    pub fn read_from(&mut self, reader: &mut dyn Read, size_hint: Option<usize>) -> IoResult<()> {
         // TODO: Since reading the file can fail, we should ensure that we also reset the cursor here.
         // I don't do it, so that `recalc_after_content_swap()` works.
         self.buffer.clear();
-        self.read_file_as_utf8(file)?;
+        self.read_as_utf8(reader, size_hint)?;
 
         // Figure out
         // * the logical line count
@@ -155,18 +165,18 @@ impl TextBuffer {
         Ok(())
     }
 
-    fn read_file_as_utf8(&mut self, file: &mut File) -> io::Result<()> {
-        // If we don't have file metadata, the input may be a pipe or a socket.
+    fn read_as_utf8(&mut self, reader: &mut dyn Read, size_hint: Option<usize>) -> io::Result<()> {
+        // Without a size hint the input may be a pipe or a socket.
         // Every read will have the same size until we hit the end.
         let mut chunk_size = 128 * KIBI;
         let mut extra_chunk_size = 128 * KIBI;
 
-        if let Ok(m) = file.metadata() {
-            // Usually the next read of size `chunk_size` will read the entire file,
+        if let Some(len) = size_hint {
+            // Usually the next read of size `chunk_size` will read the entire input,
             // but if the size has changed for some reason, then `extra_chunk_size`
-            // should be large enough to read the rest of the file.
+            // should be large enough to read the rest of it.
             // 4KiB is not too large and not too slow.
-            chunk_size = m.len() as usize;
+            chunk_size = len;
             extra_chunk_size = 4 * KIBI;
         }
 
@@ -176,7 +186,7 @@ impl TextBuffer {
                 break;
             }
 
-            let read = file.read(gap)?;
+            let read = reader.read(gap)?;
             if read == 0 {
                 break;
             }

@@ -19,7 +19,7 @@ use super::cli::{
     ColorMode, LineRange, PagingMode, WrapMode, print_short_help, prog_name, resolve_use_color,
 };
 use super::detect::head_bytes;
-use super::{gutter_view, listing, theme};
+use super::{exec, gutter_view, listing, theme};
 use lsh_defs::detect::{NO_USER_ASSOCIATIONS, find_language, resolve};
 
 /// resolve the pager binary path.
@@ -238,6 +238,7 @@ fn read_stdin() -> io::Result<Vec<String>> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run(
     files: &[String],
+    exec: bool,
     language_override: Option<&str>,
     plain: bool,
     show_numbers: bool,
@@ -262,13 +263,15 @@ pub(crate) fn run(
     let stdin_is_tty = io::stdin().is_terminal();
 
     // tty + no args -> short help
-    if stdin_is_tty && files.is_empty() {
+    if stdin_is_tty && files.is_empty() && !exec {
         return print_short_help();
     }
 
     // collect inputs: expand "-" to stdin at its position
     let mut inputs: Vec<EatInput> = Vec::new();
-    if files.is_empty() {
+    if exec {
+        inputs.push(EatInput::Command(files.to_vec()));
+    } else if files.is_empty() {
         // no args, stdin piped
         inputs.push(EatInput::Stdin);
     } else {
@@ -315,6 +318,9 @@ pub(crate) fn run(
     // tracks whether the pager (or downstream consumer) has hung up; once it
     // has, subsequent writes are pointless -- stop iterating.
     let mut sink_closed = false;
+    // a command's own failure is reported as its exit code, once eat has
+    // written what it did produce.
+    let mut command_status: Option<i32> = None;
 
     for input in &inputs {
         if sink_closed {
@@ -368,6 +374,27 @@ pub(crate) fn run(
                 Ok(lines) => (lines, None, None),
                 Err(e) => {
                     eprintln!("{}: stdin: {e}", prog_name());
+                    has_error = true;
+                    continue;
+                }
+            },
+            EatInput::Command(argv) => match exec::run(argv) {
+                Ok(out) => {
+                    if !out.status.success() {
+                        let _ = io::stderr().write_all(&out.stderr);
+                        command_status = Some(out.status.code().unwrap_or(1));
+                    }
+                    match out.stdout.lines().collect::<io::Result<Vec<String>>>() {
+                        Ok(lines) => (lines, None, None),
+                        Err(e) => {
+                            eprintln!("{}: {}: {e}", prog_name(), exec::label(argv));
+                            has_error = true;
+                            continue;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}: {}: {e}", prog_name(), exec::label(argv));
                     has_error = true;
                     continue;
                 }
@@ -446,12 +473,19 @@ pub(crate) fn run(
         let _ = c.wait();
     }
 
-    if has_error { ExitCode::from(1) } else { ExitCode::from(0) }
+    if has_error {
+        ExitCode::from(1)
+    } else if let Some(code) = command_status {
+        ExitCode::from(code.clamp(1, 255) as u8)
+    } else {
+        ExitCode::from(0)
+    }
 }
 
 enum EatInput {
     File(PathBuf),
     Stdin,
+    Command(Vec<String>),
 }
 
 #[cfg(test)]

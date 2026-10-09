@@ -45,8 +45,18 @@ pub(crate) fn resolve_language(
     path: &Path,
     override_name: Option<&str>,
 ) -> Result<&'static Language, String> {
+    resolve_language_with(Some(path), override_name, || read_head(path))
+}
+
+/// [`resolve_language`] for content that may have no path, such as a
+/// command's output: `head` is only consulted when nothing else settles it.
+pub(crate) fn resolve_language_with(
+    path: Option<&Path>,
+    override_name: Option<&str>,
+    head: impl FnOnce() -> Vec<u8>,
+) -> Result<&'static Language, String> {
     match override_name {
         Some(name) => find_language(name).ok_or_else(|| name.to_string()),
-        None => Ok(resolve(Some(path), NO_USER_ASSOCIATIONS, || read_head(path))),
+        None => Ok(resolve(path, NO_USER_ASSOCIATIONS, head)),
     }
 }

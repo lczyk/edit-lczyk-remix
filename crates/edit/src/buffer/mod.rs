@@ -31,7 +31,7 @@ use std::cell::UnsafeCell;
 use std::collections::VecDeque;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Read as _, Write as _};
+use std::io::{self, Write as _};
 use std::mem;
 use std::ops::Range;
 use std::rc::Rc;

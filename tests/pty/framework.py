@@ -245,7 +245,9 @@ class Edit:
     assert against the most recent frame.
     """
 
-    def __init__(self, argv=None, cols=None, rows=None, env=None):
+    def __init__(self, argv=None, cols=None, rows=None, env=None, argv0=None):
+        """`argv0` is what the binary sees itself called; `"eat"` takes
+        the symlink dispatch without needing a symlink."""
         argv = argv or []
         if cols is None or rows is None:
             host_cols, host_rows = _host_term_size()
@@ -271,7 +273,7 @@ class Edit:
                         os.environ.pop(k, None)
                     else:
                         os.environ[k] = v
-            os.execv(EDIT_BIN, [EDIT_BIN] + argv)
+            os.execv(EDIT_BIN, [argv0 or EDIT_BIN] + argv)
         _set_winsize(self.fd, cols, rows)
         # Disable ECHO on the pty line discipline. `edit` puts the terminal
         # into raw mode anyway; after it exits the kernel may restore cooked

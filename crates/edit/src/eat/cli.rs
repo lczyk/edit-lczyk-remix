@@ -60,6 +60,12 @@ pub(crate) struct Cli {
     #[argh(option, short = 'f')]
     pub(crate) follow: Option<FollowDuration>,
 
+    /// run a command and show its stdout instead of reading files. the
+    /// positional arguments are the command, so put `--` before it:
+    /// `eat -x -- git diff main..HEAD`
+    #[argh(switch, short = 'x')]
+    pub(crate) exec: bool,
+
     /// print known languages and exit (format: pretty, plain, json; defaults to pretty)
     #[argh(option, short = 'L')]
     pub(crate) list_languages: Option<ListFormatArg>,
@@ -68,7 +74,8 @@ pub(crate) struct Cli {
     #[argh(switch)]
     pub(crate) version: bool,
 
-    /// files to read (use - for stdin); a directory is listed
+    /// files to read (use - for stdin); a directory is listed. with -x,
+    /// the command and its arguments
     #[argh(positional)]
     pub(crate) files: Vec<String>,
 }
@@ -339,12 +346,42 @@ pub(crate) fn parse_cli() -> Cli {
         }
     }
 
+    let rewritten = rewrite_argv(&argv, via_eat_flag);
+    let strs: Vec<&str> = rewritten.iter().map(|s| s.as_str()).collect();
+    match Cli::from_args(&[strs[0]], &strs[1..]) {
+        Ok(c) => c,
+        Err(early_exit) => match early_exit.status {
+            Ok(()) => {
+                print_help_maybe_eat(&early_exit.output, via_eat_flag, strs[0]);
+                std::process::exit(0);
+            }
+            Err(()) => {
+                eprintln!(
+                    "{}\nRun {}{} for more information.",
+                    early_exit.output,
+                    strs[0],
+                    if via_eat_flag { " --eat --help" } else { " --help" },
+                );
+                std::process::exit(1);
+            }
+        },
+    }
+}
+
+/// The argv as argh will see it: `--eat` stripped, and the two options
+/// that take an optional value (`-L`, `-f`) given their default when the
+/// next token is not one. Everything after `--` passes through untouched,
+/// since from there on the tokens are paths or, with `-x`, a command.
+fn rewrite_argv(argv: &[String], via_eat_flag: bool) -> Vec<String> {
     let mut rewritten: Vec<String> = Vec::with_capacity(argv.len() + 1);
     rewritten.push(argv[0].clone());
     let mut i = 1;
     while i < argv.len() {
         let a = &argv[i];
-        if via_eat_flag && a == "--eat" {
+        if a == "--" {
+            rewritten.extend(argv[i..].iter().cloned());
+            break;
+        } else if via_eat_flag && a == "--eat" {
             // strip --eat injected by `edit --eat` before argh sees it
             i += 1;
         } else if a == "-L" || a == "--list-languages" {
@@ -379,25 +416,7 @@ pub(crate) fn parse_cli() -> Cli {
             i += 1;
         }
     }
-    let strs: Vec<&str> = rewritten.iter().map(|s| s.as_str()).collect();
-    match Cli::from_args(&[strs[0]], &strs[1..]) {
-        Ok(c) => c,
-        Err(early_exit) => match early_exit.status {
-            Ok(()) => {
-                print_help_maybe_eat(&early_exit.output, via_eat_flag, strs[0]);
-                std::process::exit(0);
-            }
-            Err(()) => {
-                eprintln!(
-                    "{}\nRun {}{} for more information.",
-                    early_exit.output,
-                    strs[0],
-                    if via_eat_flag { " --eat --help" } else { " --help" },
-                );
-                std::process::exit(1);
-            }
-        },
-    }
+    rewritten
 }
 
 // pre-existing layout: `mod tests` sits in the middle of the file, with
@@ -413,6 +432,36 @@ mod tests {
     // shebang + content-sniff tests now live in `lsh_defs::detect::tests` --
     // the impls moved to the shared crate so both `eat` and `edit` consume the
     // same detection logic.
+
+    // --- argv rewrite ---
+
+    fn argv(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn rewrite_gives_bare_f_a_duration() {
+        let out = rewrite_argv(&argv(&["eat", "-f", "x.log"]), false);
+        assert_eq!(out, argv(&["eat", "-f", "250ms", "x.log"]));
+        let out = rewrite_argv(&argv(&["eat", "-f", "2s", "x.log"]), false);
+        assert_eq!(out, argv(&["eat", "-f", "2s", "x.log"]));
+    }
+
+    #[test]
+    fn rewrite_leaves_everything_after_the_separator_alone() {
+        let out = rewrite_argv(&argv(&["eat", "-x", "--", "tail", "-f", "x.log"]), false);
+        assert_eq!(out, argv(&["eat", "-x", "--", "tail", "-f", "x.log"]));
+        let out = rewrite_argv(&argv(&["eat", "--", "-L"]), false);
+        assert_eq!(out, argv(&["eat", "--", "-L"]));
+    }
+
+    #[test]
+    fn rewrite_strips_the_eat_flag_only_when_injected() {
+        let out = rewrite_argv(&argv(&["edit", "--eat", "a.txt"]), true);
+        assert_eq!(out, argv(&["edit", "a.txt"]));
+        let out = rewrite_argv(&argv(&["eat", "--", "--eat"]), true);
+        assert_eq!(out, argv(&["eat", "--", "--eat"]));
+    }
 
     // --- line range parsing ---
 
