@@ -124,6 +124,16 @@ input` inside one can therefore never suspend, and the compiler rejects it --
 reach for `loop` and gobble up to the delimiter instead, as in the next
 section.
 
+## Alternation is ordered
+
+The regex engine commits to the first alternative that matches at the
+current position and does not come back for a longer one when a later
+assertion fails. So in `/(?:in|invariant)\>/` the `in` branch matches the
+start of `invariant`, the `\>` fails, and the whole regex fails -- the word
+ends up unhighlighted. Put longer words before their prefixes:
+`/(?:invariant|in)\>/`. [python.lsh](python.lsh) and
+[fizzbee.lsh](fizzbee.lsh) order their keyword lists that way.
+
 ## Capture groups
 
 Regexes can have capture groups.
