@@ -351,20 +351,18 @@ pub(crate) fn parse_cli() -> Cli {
         .and_then(|s| s.parse::<u64>().ok())
         .map(|ms| format!("{ms}ms"))
         .unwrap_or_else(|| format!("{}ms", PollInterval::DEFAULT.as_millis()));
-    let rewritten = rewrite_argv(&argv, via_eat_flag, &watch_default);
-    let strs: Vec<&str> = rewritten.iter().map(|s| s.as_str()).collect();
-    match Cli::from_args(&[strs[0]], &strs[1..]) {
+    match parse_argv(&argv, via_eat_flag, &watch_default) {
         Ok(c) => c,
         Err(early_exit) => match early_exit.status {
             Ok(()) => {
-                print_help_maybe_eat(&early_exit.output, via_eat_flag, strs[0]);
+                print_help_maybe_eat(&early_exit.output, via_eat_flag, &argv[0]);
                 std::process::exit(0);
             }
             Err(()) => {
                 eprintln!(
                     "{}\nRun {}{} for more information.",
                     early_exit.output,
-                    strs[0],
+                    argv[0],
                     if via_eat_flag { " --eat --help" } else { " --help" },
                 );
                 std::process::exit(1);
@@ -373,10 +371,34 @@ pub(crate) fn parse_cli() -> Cli {
     }
 }
 
-/// The argv as argh will see it: `--eat` stripped, and the two options
-/// with an optional value (`-L`, `-w`) given their default when the next
-/// token is not one. Everything after `--` passes through untouched, since
-/// from there on the tokens are paths or, with `-x`, a command.
+/// Stands in for a bare `-` on its way through argh, which reads anything
+/// starting with a dash as an option. Mapped back once the positionals are
+/// out the other side.
+const STDIN_TOKEN: &str = "\u{1}stdin";
+
+/// [`rewrite_argv`], argh, and the stdin stand-in undone.
+fn parse_argv(
+    argv: &[String],
+    via_eat_flag: bool,
+    watch_default: &str,
+) -> Result<Cli, argh::EarlyExit> {
+    use argh::FromArgs;
+    let rewritten = rewrite_argv(argv, via_eat_flag, watch_default);
+    let strs: Vec<&str> = rewritten.iter().map(|s| s.as_str()).collect();
+    let mut cli = Cli::from_args(&[strs[0]], &strs[1..])?;
+    for f in &mut cli.files {
+        if f == STDIN_TOKEN {
+            *f = "-".to_string();
+        }
+    }
+    Ok(cli)
+}
+
+/// The argv as argh will see it: `--eat` stripped, a bare `-` stood in
+/// for, and the two options with an optional value (`-L`, `-w`) given
+/// their default when the next token is not one. Everything after `--`
+/// passes through untouched, since from there on the tokens are paths or,
+/// with `-x`, a command.
 fn rewrite_argv(argv: &[String], via_eat_flag: bool, watch_default: &str) -> Vec<String> {
     let mut rewritten: Vec<String> = Vec::with_capacity(argv.len() + 1);
     rewritten.push(argv[0].clone());
@@ -386,6 +408,9 @@ fn rewrite_argv(argv: &[String], via_eat_flag: bool, watch_default: &str) -> Vec
         if a == "--" {
             rewritten.extend(argv[i..].iter().cloned());
             break;
+        } else if a == "-" {
+            rewritten.push(STDIN_TOKEN.to_string());
+            i += 1;
         } else if via_eat_flag && a == "--eat" {
             // strip --eat injected by `edit --eat` before argh sees it
             i += 1;
@@ -463,6 +488,18 @@ mod tests {
     }
 
     #[test]
+    fn a_bare_dash_is_a_positional() {
+        let cli = parse_argv(&argv(&["eat", "-n", "-"]), false, "1000ms").unwrap();
+        assert!(cli.number);
+        assert_eq!(cli.files, argv(&["-"]));
+        let cli = parse_argv(&argv(&["eat", "-x", "cat", "-", "-n"]), false, "1000ms").unwrap();
+        assert_eq!(cli.files, argv(&["cat", "-"]));
+        assert!(cli.number);
+        let cli = parse_argv(&argv(&["eat", "--", "-"]), false, "1000ms").unwrap();
+        assert_eq!(cli.files, argv(&["-"]));
+    }
+
+    #[test]
     fn rewrite_strips_the_eat_flag_only_when_injected() {
         let out = rewrite_argv(&argv(&["edit", "--eat", "a.txt"]), true, "1000ms");
         assert_eq!(out, argv(&["edit", "a.txt"]));
@@ -475,7 +512,6 @@ mod tests {
     /// matrix promises rather than against expected outputs.
     #[test]
     fn every_short_argv_parses_by_the_rules() {
-        use argh::FromArgs;
         const ALPHABET: [&str; 7] = ["-w", "2s", "-x", "--", "a.txt", "-", "-n"];
         let mut count = 0;
         let mut stack: Vec<Vec<&str>> = vec![vec![]];
@@ -505,7 +541,7 @@ mod tests {
                 assert_eq!(tail, after_sep, "{seq:?}: rewritten {strs:?}");
             }
 
-            let Ok(cli) = Cli::from_args(&[strs[0]], &strs[1..]) else { continue };
+            let Ok(cli) = parse_argv(&argv(&raw), false, "1000ms") else { continue };
 
             // -x and -w are only flags before the separator.
             assert_eq!(cli.exec, before_sep.contains(&"-x"), "{seq:?}");
@@ -520,9 +556,18 @@ mod tests {
                 assert_eq!(cli.watch.map(|w| w.0), Some(want), "{seq:?}");
             }
 
-            // everything after the separator is a positional, in order.
+            // everything after the separator is a positional, in order,
+            // and so is a bare dash wherever it stands.
             let files: Vec<&str> = cli.files.iter().map(String::as_str).collect();
             assert!(files.ends_with(&after_sep), "{seq:?}: files {files:?}");
+            let dashes = seq.iter().filter(|t| **t == "-").count();
+            let dashes_after_w =
+                before_sep.windows(2).filter(|w| w[0] == "-w" && w[1] == "-").count();
+            assert_eq!(
+                files.iter().filter(|f| **f == "-").count(),
+                dashes,
+                "{seq:?}: files {files:?}, {dashes_after_w} after -w"
+            );
             // and nothing before it that is a flag ends up there.
             for f in &files[..files.len() - after_sep.len()] {
                 assert!(!["-w", "-x", "-n"].contains(f), "{seq:?}: files {files:?}");

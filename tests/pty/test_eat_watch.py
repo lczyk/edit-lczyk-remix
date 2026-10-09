@@ -93,6 +93,7 @@ def watch_refuses_what_the_viewer_cannot_show():
             (["--eat", "-w", path], b"needs a tty"),
             (["--eat", "-w", "-x", "--", "cat", path], b"needs a tty"),
             (["--eat", "-w"], b"needs a file"),
+            (["--eat", "-w", "-"], b"cannot watch stdin"),
             (["--eat", "-w", path, path], b"takes a single file"),
             (["--eat", "-w", d], b"cannot watch a directory"),
             (["--eat", "-w", "--plain", path], b"--plain"),
