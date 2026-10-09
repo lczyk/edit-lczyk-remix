@@ -99,6 +99,12 @@ command's exit code is `eat`'s, with its stderr forwarded. There is no path
 to detect a language from, so without `-l` the output is sniffed (shebang,
 then content), and most command output lands on Plain Text.
 
+In the viewer the command runs in the background: the screen paints at once
+with `[running]` in the header, keys work while it runs, and the output lands
+when it returns. One run at a time -- `r` while one is running does nothing.
+Quitting kills the command and its children. A command that prints forever
+never lands; `eat` promises "run to completion", not a stream.
+
 A rerun that fails without producing anything keeps what is on screen and
 puts the reason in the header: the exit code and the last stderr line, as in
 `[exit 128: fatal: bad revision 'nope']`. A command that exits nonzero *with*
@@ -120,7 +126,10 @@ eat -w 500ms -x -- git diff        # every half second
 The optional value accepts `500ms`, `30s`, `1m`, `1.5s`, or a bare number
 meaning seconds. Bare `-w` polls every second, or every
 `EAT_WATCH_INTERVAL_MS` milliseconds when that is set. Intervals below 50 ms
-are clamped. The header says `live 500ms` while it is on.
+are clamped, and a command is polled no faster than every 250 ms, since each
+poll is a spawn. The header says `live 500ms` while it is on. A command
+slower than the interval is simply run again when it returns; polls that find
+it still running do nothing.
 
 Live mode needs the viewer, so these error with exit code 2 rather than
 half-working: stdout not a tty, `--plain`, `--line-range`, no path, `-`,
@@ -128,7 +137,8 @@ more than one path, a directory.
 
 Without `-w` the viewer still polls a file every two seconds, but only to
 raise a `[modified on disk]` marker in the header; the buffer moves on `r`
-alone. The header's marker slot shows one thing at a time: the modified
+alone. A command is not polled at all without `-w`: there is nothing cheap to
+ask it. The header's marker slot shows one thing at a time: the modified
 marker, or what the last load had to say.
 
 The reload states -- when the buffer moves, what the marker says, where the
