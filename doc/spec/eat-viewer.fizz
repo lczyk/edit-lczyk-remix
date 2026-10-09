@@ -37,8 +37,10 @@ action_options:
 # - "buffer" is what the viewer shows.
 # - "load" = read the source, replace the buffer, keep the viewport.
 #
-# R1:  THE SYSTEM SHALL load the source once at startup.
-# R2:  WHEN the user presses `r`, THE SYSTEM SHALL load the source.
+# R1:  THE SYSTEM SHALL load the source once at startup; a command is
+#      started at startup and loaded when it returns.
+# R2:  WHEN the user presses `r`, THE SYSTEM SHALL load the source; for a
+#      command that is already running, nothing.
 # R3:  WHILE `-w` is given, WHEN the poll interval elapses and the source
 #      differs from the buffer, THE SYSTEM SHALL load the source.
 # R3b: WHILE `-w` is given, WHEN the poll interval elapses and the source
@@ -58,6 +60,10 @@ action_options:
 #      buffer.
 # R9:  WHILE `-w` is given, THE SYSTEM SHALL ensure the buffer eventually
 #      matches the source whenever the source stops changing.
+# R10: THE SYSTEM SHALL run at most one command at a time; a poll that
+#      finds one running leaves everything as it is.
+# R11: WHILE the source is a command and `-w` is not given, THE SYSTEM
+#      SHALL NOT run the command on a poll.
 #
 # Decisions the model forced, not stated in the requirements:
 # - the marker is a snapshot taken at the tick, so it can lag the source by
@@ -68,6 +74,13 @@ action_options:
 # - outside the model: a command that exits nonzero but produces output
 #   (diff, grep) is loaded, and the marker notes the exit code anyway.
 #   that is a load with a note, not an error; the invariants are unchanged.
+# - a command is not a file: it has no cheap "did it change" probe, so a
+#   load is a run that takes time. the run is modelled as Tick (or r)
+#   starting it and a fair Finish returning with what the source was at
+#   that moment. while a run is in flight the viewer keeps answering keys
+#   and ticks; a tick does not start a second run (R10). R5's "modified"
+#   marker is a file thing: a static command view never runs on a poll
+#   (R11), so it has nothing to report.
 #
 # Model: the source is a monotonic version number; None means unavailable.
 # LEN gives the buffer length of each version and BODY the viewport height,
@@ -80,10 +93,11 @@ LEN = {0: 1, 1: 5, 2: 1, 3: 3}
 BODY = 2
 
 Marker = enum('NONE', 'MODIFIED', 'ERROR')
-Act = enum('INIT', 'SOURCE_CHANGE', 'SOURCE_VANISH', 'TICK', 'PRESS_R', 'SCROLL')
+Act = enum('INIT', 'SOURCE_CHANGE', 'SOURCE_VANISH', 'TICK', 'PRESS_R', 'SCROLL', 'FINISH')
 
 action Init:
     live = oneof [False, True]
+    cmd = oneof [False, True]      # the source is a command, not a file
     disk = 1
     buf = 0
     top = 0
@@ -91,9 +105,14 @@ action Init:
     last = Act.INIT
     loads = 0
     r_presses = 0
-    # R1: startup load, inlined because funcs cannot see globals from Init
-    loads = 1
-    buf = disk
+    in_flight = False
+    # R1: startup load, inlined because funcs cannot see globals from Init.
+    # a command only starts here; Finish loads it.
+    if cmd:
+        in_flight = True
+    else:
+        loads = 1
+        buf = disk
 
 # --- environment --------------------------------------------------------
 
@@ -112,7 +131,10 @@ atomic action SourceVanish:
 atomic action PressR:             # R2
     r_presses += 1
     last = Act.PRESS_R
-    load()
+    if cmd:
+        in_flight = True           # a run already in flight: nothing more
+    else:
+        load()
 
 atomic action Scroll:
     top = oneof range(LEN[buf])
@@ -122,6 +144,10 @@ atomic action Scroll:
 
 atomic fair action Tick:
     last = Act.TICK
+    if cmd:
+        if live and not in_flight:
+            in_flight = True       # R3 for a command: start a run (R10, R11)
+        return
     if live:
         if disk == None:
             marker = Marker.ERROR  # R7, even without a change
@@ -133,6 +159,16 @@ atomic fair action Tick:
             marker = Marker.ERROR
         elif disk != buf:
             marker = Marker.MODIFIED   # R5
+
+# the command returns. fair: a command that never returns is outside
+# the model (the viewer stays usable, the buffer never changes).
+atomic fair action Finish:
+    require in_flight
+    in_flight = False
+    last = Act.FINISH
+    if disk == buf:
+        return                     # R3b: same output, buffer untouched
+    load()
 
 atomic func load():
     if disk == None:
@@ -154,7 +190,7 @@ always assertion StaticLoadsOnlyOnR:   # R4 (the init load is the +1)
 # the marker is a snapshot taken at the tick, so between ticks it may lag
 # the source by up to one poll interval. the property is on the tick.
 transition assertion TickRefreshesMarker(before, after):
-    if after.last != Act.TICK or after.live:
+    if after.last != Act.TICK or after.live or after.cmd:
         return True
     if after.disk == None:
         return after.marker == Marker.ERROR
@@ -171,7 +207,25 @@ always assertion LiveNeverShowsModified:
 transition assertion BufferOnlyChangesOnLoad(before, after):
     if after.buf == before.buf:
         return True
-    return after.last in [Act.PRESS_R, Act.TICK] and after.loads == before.loads + 1
+    return after.last in [Act.PRESS_R, Act.TICK, Act.FINISH] and after.loads == before.loads + 1
+
+transition assertion TickWhileRunningIsQuiet(before, after):   # R10
+    if not before.in_flight or after.last != Act.TICK:
+        return True
+    return after.buf == before.buf and after.marker == before.marker and after.in_flight
+
+transition assertion StaticCommandNeverRunsOnAPoll(before, after):   # R11
+    if after.last != Act.TICK or not before.cmd or before.live:
+        return True
+    return after.in_flight == before.in_flight
+
+transition assertion FinishOnUnavailableSaysSo(before, after):   # R7 for a command
+    if after.last != Act.FINISH or after.disk != None:
+        return True
+    return after.marker == Marker.ERROR and after.buf == before.buf
+
+exists assertion ATickFindsARunInFlight:
+    return cmd and live and in_flight and last == Act.TICK
 
 transition assertion LoadKeepsViewport(before, after):   # R6
     if after.loads == before.loads:
@@ -186,7 +240,7 @@ transition assertion UnavailableKeepsBuffer(before, after):   # R7
 transition assertion NoSpuriousLoad(before, after):   # R3b
     if after.loads == before.loads:
         return True
-    return before.disk != before.buf or after.last == Act.PRESS_R
+    return before.disk != before.buf or after.last == Act.PRESS_R or (before.cmd and before.loads == 0)
 
 always eventually assertion LiveCatchesUp:   # R9
     return not live or disk == None or buf == disk
