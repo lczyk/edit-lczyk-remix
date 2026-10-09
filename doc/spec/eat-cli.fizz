@@ -1,0 +1,191 @@
+# eat cli: the two-stage parse (argv rewrite, then argh) and the dispatch.
+#
+# Run it with `make spec-check`, or by hand from this directory:
+#
+#     docker run --rm -v "$PWD":/workspace ghcr.io/fizzbee-io/fizzbee:latest eat-cli.fizz
+#
+# This is a model of the rules, not of the code: `dispatch` transcribes
+# eat::main, so a change to the matrix wants reasoning here first, and the
+# bounded test in crates/edit/src/eat/cli.rs then checks the real parser.
+#
+# Tokens arrive one at a time from a small alphabet, each run through the
+# rewrite rules and the argh rules as it lands. `End` closes the argv and
+# runs the dispatch of eat::main. The properties are the promises of the
+# combination matrix, not expected outputs.
+#
+# vocabulary
+# - "options mode" is argh before `--`; after it every token is a positional.
+# - "the stand-in" is what the rewrite does to a bare `-`, so argh does not
+#   read it as an option.
+#
+# requirements (ears)
+# C1:  WHILE in options mode, WHEN `-x` arrives, THE SYSTEM SHALL set exec mode.
+# C2:  WHILE in options mode, WHEN `-w` arrives, THE SYSTEM SHALL set watch:
+#      to the next token when that parses as a duration, else to the default
+#      and the next token is parsed on its own.
+# C3:  WHEN `--` arrives in options mode, THE SYSTEM SHALL end options mode.
+# C4:  WHILE not in options mode, THE SYSTEM SHALL append every token to the
+#      positionals verbatim, flags included.
+# C5:  WHEN a bare `-` arrives in options mode, THE SYSTEM SHALL append `-`
+#      to the positionals.
+# C6:  IF an unknown flag arrives in options mode, THEN THE SYSTEM SHALL
+#      reject the argv.
+# D1:  WHILE exec mode is set, THE SYSTEM SHALL treat the positionals as the
+#      command, and reject an empty one.
+# D2:  WHILE watch is set, THE SYSTEM SHALL take the viewer or reject the
+#      argv; it never streams.
+# D3:  THE SYSTEM SHALL take the viewer only on a tty.
+# D4:  WHILE exec mode is not set, THE SYSTEM SHALL take the viewer only for a
+#      single positional that is neither `-` nor a directory.
+
+ALPHABET = ['-w', '2s', '-x', '-n', '--', '-', 'FILE', 'DIR', '-q']
+MAX_TOKENS = 4
+DEFAULT_MS = 1000
+
+Mode = enum('OPTS', 'POS')
+Outcome = enum('NONE', 'VIEWER_FILE', 'VIEWER_CMD', 'STREAM', 'HELP', 'USAGE', 'REJECTED')
+
+action Init:
+    tty = oneof [False, True]
+    argv = []
+    last = ''
+    mode = Mode.OPTS
+    want_dur = False
+    watch = None
+    cmd_mode = False
+    number = False
+    files = []
+    done = False
+    outcome = Outcome.NONE
+
+atomic action Feed:
+    require not done and len(argv) < MAX_TOKENS
+    t = oneof ALPHABET
+    argv.append(t)
+    last = t
+    consume(t)
+
+atomic func consume(t):
+    # stage 1, the rewrite: the token after -w is its value iff it is a
+    # duration; otherwise the default is inserted and t is parsed as itself.
+    if want_dur:
+        want_dur = False
+        if t == '2s':
+            watch = 2000
+            return
+        watch = DEFAULT_MS
+    # stage 2, argh.
+    if mode == Mode.POS:
+        files.append(t)                        # C4
+        return
+    if t == '--':
+        mode = Mode.POS                        # C3
+    elif t == '-':
+        files.append('-')                      # C5, via the stand-in
+    elif t == '-w':
+        want_dur = True                        # C2
+    elif t == '-x':
+        cmd_mode = True                            # C1
+    elif t == '-n':
+        number = True
+    elif t.startswith('-'):
+        done = True                            # C6
+        outcome = Outcome.REJECTED
+    else:
+        files.append(t)
+
+atomic action End:
+    require not done
+    done = True
+    if want_dur:
+        want_dur = False
+        watch = DEFAULT_MS
+    dispatch()
+
+# a finished run stays finished. this is the terminal state's successor,
+# so deadlock detection stays on and a run that cannot end is a finding.
+atomic action Finished:
+    require done
+    pass
+
+# eat::main, as the matrix describes it.
+atomic func dispatch():
+    if cmd_mode:
+        if len(files) == 0:
+            outcome = Outcome.USAGE            # D1
+        elif tty:
+            outcome = Outcome.VIEWER_CMD
+        elif watch != None:
+            outcome = Outcome.USAGE            # D2
+        else:
+            outcome = Outcome.STREAM
+        return
+    one_file = len(files) == 1 and files[0] != '-' and files[0] != 'DIR'
+    if tty and one_file:
+        outcome = Outcome.VIEWER_FILE
+    elif watch != None:
+        outcome = Outcome.USAGE                # D2
+    elif tty and len(files) == 0:
+        outcome = Outcome.HELP
+    else:
+        outcome = Outcome.STREAM
+
+# --- properties ---------------------------------------------------------
+
+transition assertion AfterSeparatorEverythingIsPositional(before, after):   # C4
+    if before.mode != Mode.POS or after.done:
+        return True
+    if len(after.argv) == len(before.argv):
+        return True
+    return (after.files == before.files + [after.last]
+            and after.cmd_mode == before.cmd_mode
+            and after.watch == before.watch
+            and after.number == before.number)
+
+transition assertion WatchTakesADurationOrTheDefault(before, after):   # C2
+    if not before.want_dur or len(after.argv) == len(before.argv):
+        return True
+    if after.last == '2s':
+        return after.watch == 2000 and after.files == before.files
+    return after.watch == DEFAULT_MS
+
+always assertion DashIsAlwaysAPositional:   # C5
+    return len([t for t in argv if t == '-']) == len([f for f in files if f == '-'])
+
+always assertion FlagsOnlyFromOptionsMode:   # C1, C2
+    opts = argv[0:argv.index('--')] if '--' in argv else argv
+    return cmd_mode == ('-x' in opts) and (watch != None or want_dur) == ('-w' in opts)
+
+always assertion WatchNeverStreams:   # D2
+    return not done or watch == None or outcome != Outcome.STREAM
+
+always assertion ViewerNeedsATty:   # D3
+    return not (outcome == Outcome.VIEWER_FILE or outcome == Outcome.VIEWER_CMD) or tty
+
+always assertion ExecNeverOpensAPath:   # D1
+    return not done or not cmd_mode or outcome == Outcome.USAGE or outcome == Outcome.REJECTED or len(files) > 0
+
+always assertion StdinAndDirsNeverGetTheViewer:   # D4
+    if outcome != Outcome.VIEWER_FILE:
+        return True
+    return len(files) == 1 and files[0] != '-' and files[0] != 'DIR'
+
+always assertion EveryRunEnds:
+    return not done or outcome != Outcome.NONE
+
+# coverage: every outcome is reachable within MAX_TOKENS, so the properties
+# above are not vacuous for any of them.
+exists assertion ReachesViewerFile:
+    return outcome == Outcome.VIEWER_FILE
+exists assertion ReachesViewerCmd:
+    return outcome == Outcome.VIEWER_CMD
+exists assertion ReachesStream:
+    return outcome == Outcome.STREAM
+exists assertion ReachesHelp:
+    return outcome == Outcome.HELP
+exists assertion ReachesUsage:
+    return outcome == Outcome.USAGE
+exists assertion ReachesRejected:
+    return outcome == Outcome.REJECTED
+exists assertion ReachesWatchedCommandOnATty:
+    return outcome == Outcome.VIEWER_CMD and watch == 2000

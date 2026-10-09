@@ -134,8 +134,11 @@ marker, or what the last load had to say.
 The reload states -- when the buffer moves, what the marker says, where the
 viewport lands -- are modelled in
 [`doc/spec/eat-viewer.fizz`](https://github.com/lczyk/edit-lczyk-remix/blob/lczyk-remix/doc/spec/eat-viewer.fizz),
-a [FizzBee](https://fizzbee.io) spec with the requirements in its header;
-`make spec-check` runs the model checker through its docker image.
+and the argument rules above (what `--` ends, what `-w` takes, what `-x`
+turns the positionals into, which argv gets the viewer) in
+[`doc/spec/eat-cli.fizz`](https://github.com/lczyk/edit-lczyk-remix/blob/lczyk-remix/doc/spec/eat-cli.fizz).
+Both are [FizzBee](https://fizzbee.io) specs with the requirements in their
+header; `make spec-check` runs the model checker through its docker image.
 
 ## Viewer keys
 
