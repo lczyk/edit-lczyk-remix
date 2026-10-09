@@ -10,6 +10,7 @@ const INTERVAL: CoordType = 16;
 #[cfg(not(debug_assertions))]
 const INTERVAL: CoordType = 1024;
 
+/// The checkpoint rules are modelled in `doc/spec/lsh-cache.fizz`.
 #[derive(Default)]
 pub struct HighlighterCache {
     checkpoints: Vec<HighlighterState>,

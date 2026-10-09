@@ -1,0 +1,165 @@
+---
+# edits are the environment; a seek is what the renderer does. bounded so
+# the state space stays small; seeks are free.
+action_options:
+  Edit:
+    max_actions: 2
+  Insert:
+    max_actions: 1
+  Delete:
+    max_actions: 1
+---
+
+# edit's incremental highlighter cache (crates/edit/src/lsh/cache.rs).
+#
+# Run it with `make spec-check`, or by hand from this directory:
+#
+#     docker run --rm -v "$PWD":/workspace ghcr.io/fizzbee-io/fizzbee:latest lsh-cache.fizz
+#
+# A document is a list of line kinds; the lexer has two states, plain and
+# inside a block comment, flipped by OPEN / CLOSE lines. The cache keeps
+# the lexer state at the start of every INTERVAL-th line as a checkpoint.
+# A render pass seeks lines through the cache with a fresh highlighter; an
+# edit at line i truncates the checkpoints from ceil(i / INTERVAL).
+#
+# Requirements (ears form):
+#
+# C1: THE SYSTEM SHALL return, for any seek, the spans a parse from line 0
+#     would return.
+# C2: THE SYSTEM SHALL keep only checkpoints that equal the lexer state a
+#     parse from line 0 reaches at that line.
+# C3: WHEN a line is edited, inserted or deleted at i, THE SYSTEM SHALL
+#     drop every checkpoint at or past line i and keep every one before it.
+#
+# Decisions and limits:
+# - the oracle is folded into one bit (`seek_ok`) rather than kept as the
+#   spans, so the state space does not carry them; 5k states check in
+#   seconds, the span-carrying version took minutes.
+# - C3's "keep every one before it" is what tells a conservative over-
+#   invalidation (floor instead of ceil) from the real rule; without it
+#   that mutant passes, since dropping more is never wrong, only slower.
+# - what the model cannot see: an edit path in the editor that does not
+#   call invalidate_from at all. the sanity check
+#   highlighter_cache_coherent in cache.rs covers that in the real thing.
+
+INTERVAL = 2
+MAX_LINES = 4
+Kind = enum('TEXT', 'OPEN', 'CLOSE')
+Lex = enum('PLAIN', 'BLOCK')
+
+action Init:
+    doc = [Kind.TEXT, Kind.OPEN, Kind.TEXT]
+    checkpoints = []           # index k = lexer state at the start of line k * INTERVAL
+    hl_pos = 0                 # the highlighter the current render pass carries
+    hl_state = Lex.PLAIN
+    last_seek = -1
+    seek_ok = True             # the last seek agreed with a parse from line 0
+    edited_at = -1             # line of the last edit, for C3
+
+# --- the lexer, one line at a time ---------------------------------------
+
+atomic func step(state, kind):
+    if kind == Kind.OPEN:
+        return Lex.BLOCK
+    if kind == Kind.CLOSE:
+        return Lex.PLAIN
+    return state
+
+# --- environment: edits between render passes ----------------------------
+
+atomic action Edit:
+    i = oneof range(len(doc))
+    k = oneof [Kind.TEXT, Kind.OPEN, Kind.CLOSE]
+    require k != doc[i]
+    doc[i] = k
+    edited_at = i
+    invalidate_from(i)
+    reset_highlighter()
+
+atomic action Insert:
+    require len(doc) < MAX_LINES
+    i = oneof range(len(doc) + 1)
+    k = oneof [Kind.TEXT, Kind.OPEN, Kind.CLOSE]
+    doc = doc[0:i] + [k] + doc[i:]
+    edited_at = i
+    invalidate_from(i)
+    reset_highlighter()
+
+atomic action Delete:
+    require len(doc) > 1
+    i = oneof range(len(doc))
+    doc = doc[0:i] + doc[i + 1:]
+    edited_at = i
+    invalidate_from(i)
+    reset_highlighter()
+
+atomic func invalidate_from(line):
+    keep = (line + INTERVAL - 1) // INTERVAL          # ceil_line_to_offset
+    checkpoints = checkpoints[0:keep]
+
+atomic func reset_highlighter():
+    hl_pos = 0
+    hl_state = Lex.PLAIN
+
+# --- the renderer: HighlighterCache::parse_line -------------------------
+
+atomic action Seek:
+    line = oneof range(len(doc))
+    fresh = oneof [False, True]      # a new render pass starts with a new highlighter
+    if fresh:
+        reset_highlighter()
+    if line != hl_pos:
+        if len(checkpoints) > 0:
+            n = min(line // INTERVAL, len(checkpoints) - 1)
+            hl_pos = n * INTERVAL
+            hl_state = checkpoints[n]
+        # else: the real code asserts hl_pos == 0 here (highlighter_at_line_zero)
+        while hl_pos < line:
+            parse_line_impl()
+    spans = parse_line_impl()
+    last_seek = line
+    # the oracle: from the top, no cache. kept as one bit so the state
+    # space does not carry the spans themselves.
+    s = Lex.PLAIN
+    for j in range(line):
+        s = step(s, doc[j])
+    seek_ok = spans == [s, doc[line]]
+
+atomic func parse_line_impl():
+    if hl_pos // INTERVAL == len(checkpoints) and hl_pos % INTERVAL == 0:
+        checkpoints.append(hl_state)
+    spans = [hl_state, doc[hl_pos]]
+    hl_state = step(hl_state, doc[hl_pos])
+    hl_pos = hl_pos + 1
+    return spans
+
+# --- properties ---------------------------------------------------------
+
+always assertion SeekMatchesScratch:          # C1
+    return seek_ok
+
+always assertion CheckpointsAreTrue:          # C2
+    s = Lex.PLAIN
+    for k in range(len(checkpoints)):
+        for j in range((k - 1) * INTERVAL if k > 0 else 0, k * INTERVAL):
+            s = step(s, doc[j])
+        if checkpoints[k] != s:
+            return False
+    return True
+
+always assertion HighlighterAtLineZeroWhenCold:
+    # the sanity assert in parse_line: no checkpoints means the highlighter
+    # the caller passed in has not moved.
+    return len(checkpoints) > 0 or hl_pos == 0 or last_seek < 0
+
+transition assertion EditKeepsCheckpointsBeforeTheLine(before, after):   # C3
+    if after.doc == before.doc:
+        return True
+    keep = (after.edited_at + INTERVAL - 1) // INTERVAL
+    return len(after.checkpoints) == min(len(before.checkpoints), keep)
+
+exists assertion ARestoreHappens:
+    return last_seek >= INTERVAL and len(checkpoints) > 1
+
+exists assertion ADeleteCrossesACheckpoint:
+    return len(doc) < 3 and len(checkpoints) > 0
