@@ -1,0 +1,60 @@
+# Edit keybindings (macOS).
+#
+# One chord per action, or a list of them: exit: [Ctrl+Q, Ctrl+W].
+# Modifiers: Ctrl, Alt, Shift, Cmd (Super).
+# Separate modifiers and the key with "+". Key names: letter A-Z, digit 0-9,
+# Up/Down/Left/Right, Home/End/PageUp/PageDown, Insert/Delete,
+# Tab/Back/Return/Escape/Space, F1..F24, Numpad0..Numpad9.
+#
+# Leave a value empty, or set it to "", to leave an action unbound.
+
+keybindings:
+  # Ctrl even on macOS: every terminal claims Cmd+Q for its own quit, so binding
+  # Exit there means the terminal dies without the save-changes prompt.
+  # Same goes for the Ctrl+W alias: Cmd+W closes the terminal tab.
+  exit:              [Ctrl+Q, Ctrl+W]
+  save:              Cmd+S
+
+  undo:              Cmd+Z
+  redo:              Cmd+Shift+Z
+  cut:               Cmd+X
+  copy:              Cmd+C
+  paste:             Cmd+V
+  select_all:        Cmd+A
+  find:              Cmd+F
+  replace:           Cmd+R
+
+  focus_statusbar:   ""
+  go_to_line:        Cmd+L
+
+  # Jump to top/bottom of the file (vim-style g/G).
+  jump_document_start:  Cmd+G
+  jump_document_end:    Cmd+Shift+G
+  toggle_word_wrap:  Alt+Z
+  toggle_column_guides:  Alt+G
+
+  open_about:        ""
+  focus_menubar:     F10
+
+  move_line_up:      Alt+Up
+  move_line_down:    Alt+Down
+
+  delete_line:       Cmd+Shift+K
+
+  toggle_line_comment:  Cmd+/
+
+  # Cursor jumps 3 lines at a time. Select variants extend the selection.
+  small_jump_up:            Cmd+Up
+  small_jump_down:          Cmd+Down
+  small_jump_up_select:     Cmd+Shift+Up
+  small_jump_down_select:   Cmd+Shift+Down
+
+  # Line-start is smart: first jumps to end of indent, then to column 0 if already there.
+  line_start:               Cmd+Left
+  line_end:                 Cmd+Right
+  line_start_select:        Cmd+Shift+Left
+  line_end_select:          Cmd+Shift+Right
+
+  # Delete from cursor to start/end of the current logical line.
+  delete_to_line_start:     Cmd+Back
+  delete_to_line_end:       Cmd+Delete

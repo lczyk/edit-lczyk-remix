@@ -112,7 +112,7 @@ def config_home() -> str:
     """Throwaway `XDG_CONFIG_HOME` shared by every `Edit` in this run.
 
     `edit` resolves its config dir as `$XDG_CONFIG_HOME/edit` (see
-    `settings::config_dir`) and creates `keybindings.toml` there on first
+    `settings::config_dir`) and creates `keybindings.yaml` there on first
     run from the shipped platform defaults. Without this the tests would
     read whoever's `~/.config/edit` the run happens to sit next to, so a
     stale local config would silently change which chords work -- and the
@@ -528,7 +528,7 @@ def primary(letter: str, shift: bool = False) -> bytes:
 
     Cmd on macOS, Ctrl elsewhere -- the same split the editor applies as
     `KBMOD_PRIMARY` (crates/edit/src/tui/textarea.rs) and that the shipped
-    keybindings.macos.toml / keybindings.linux.toml follow. Sending a bare
+    keybindings.macos.yaml / keybindings.linux.yaml follow. Sending a bare
     Ctrl byte on macOS is not just a different spelling of the chord; it
     matches nothing, so the editor doesn't even redraw.
     """
@@ -551,7 +551,7 @@ REDO = primary("z", shift=True) if _IS_MAC else primary("y")
 FIND = primary("f")
 REPLACE = primary("r")
 # Exit is Ctrl+Q on both platforms -- macOS terminals claim Cmd+Q themselves,
-# so the shipped keybindings.macos.toml leaves it on Ctrl.
+# so the shipped keybindings.macos.yaml leaves it on Ctrl.
 EXIT = CTRL_Q
 SAVE = primary("s")
 TOGGLE_COMMENT = csi_u(ord("/"), cmd=True) if _IS_MAC else csi_u(ord("/"), ctrl=True)

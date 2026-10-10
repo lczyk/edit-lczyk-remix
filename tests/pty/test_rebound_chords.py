@@ -1,4 +1,4 @@
-"""What keybindings.toml says about the six textarea chords is what happens.
+"""What keybindings.yaml says about the six textarea chords is what happens.
 
 Regression: cut/copy/paste/undo/redo/select_all were hardcoded to the
 platform's primary modifier inside the textarea widget, and no code path
@@ -17,14 +17,14 @@ CTRL_J = csi_u(ord("j"), ctrl=True)
 
 
 def _config_path() -> str:
-    return os.path.join(config_home(), "edit", "keybindings.toml")
+    return os.path.join(config_home(), "edit", "keybindings.yaml")
 
 
 @contextlib.contextmanager
 def bindings(**overrides):
     """Overlay `overrides` on the config for the duration of the block.
 
-    `merge_file` applies the file on top of the shipped defaults, so a table
+    `merge_file` applies the file on top of the shipped defaults, so a mapping
     holding only these entries leaves every other action alone. The previous
     contents are restored on the way out -- the config dir is shared by the
     whole run.
@@ -35,7 +35,7 @@ def bindings(**overrides):
     if os.path.exists(path):
         with open(path, "rb") as f:
             previous = f.read()
-    body = "[keybindings]\n" + "".join(f'{k} = "{v}"\n' for k, v in overrides.items())
+    body = "keybindings:\n" + "".join(f'  {k}: "{v}"\n' for k, v in overrides.items())
     with open(path, "w", encoding="utf-8") as f:
         f.write(body)
     try:

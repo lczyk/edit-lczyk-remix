@@ -50,21 +50,23 @@ impl Settings {
             Err(err) => return Err(err.into()),
             Ok(str) => str,
         };
-        let Ok(doc) = toml_span::parse(&str) else {
-            return Err(apperr::Error::SettingsInvalid("Invalid TOML"));
+        self.load_str(&str)
+    }
+
+    fn load_str(&mut self, str: &str) -> apperr::Result<()> {
+        let scratch = scratch_arena(None);
+        let Ok(doc) = yaml::parse(str) else {
+            return Err(apperr::Error::SettingsInvalid("Invalid YAML"));
         };
-        let Some(root) = doc.as_table() else {
-            return Err(apperr::Error::SettingsInvalid("Non-table root"));
-        };
-        let Some((_, associations)) = root.iter().find(|(k, _)| k.name == "associations") else {
+        let Some(associations) = doc.get("associations") else {
             return Ok(());
         };
-        let Some(associations) = associations.as_table() else {
-            return Err(apperr::Error::SettingsInvalid("[associations] not a table"));
+        let Some(associations) = associations.as_map() else {
+            return Err(apperr::Error::SettingsInvalid("associations not a mapping"));
         };
 
-        for (k, v) in associations.iter() {
-            let mut key: &str = &k.name;
+        for (k, v) in associations {
+            let mut key: &str = k;
             if !key.contains('/') {
                 key = arena_format!(&*scratch, "**/{key}").leak();
             }
@@ -83,7 +85,7 @@ impl Settings {
 
 fn associations_path() -> Option<PathBuf> {
     let mut config_dir = config_dir()?;
-    config_dir.push("associations.toml");
+    config_dir.push("associations.yaml");
     Some(config_dir)
 }
 
@@ -100,4 +102,38 @@ pub fn config_dir() -> Option<PathBuf> {
     var_path("XDG_CONFIG_HOME")
         .or_else(|| var_path("HOME").map(|p| push(p, ".config")))
         .map(|p| push(p, "edit"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load(text: &str) -> apperr::Result<Vec<(String, &'static str)>> {
+        let mut s = Settings::new();
+        s.load_str(text)?;
+        Ok(s.file_associations.into_iter().map(|(k, l)| (k, l.id)).collect())
+    }
+
+    #[test]
+    fn associations_map_globs_to_languages() {
+        let got = load("associations:\n  \"*.zzz\": markdown\n  dir/x.conf: markdown\n").unwrap();
+        assert_eq!(
+            got,
+            [("**/*.zzz".to_string(), "markdown"), ("dir/x.conf".to_string(), "markdown")]
+        );
+    }
+
+    #[test]
+    fn a_file_without_associations_is_fine() {
+        assert!(load("").unwrap().is_empty());
+        assert!(load("other: 1\n").unwrap().is_empty());
+    }
+
+    #[test]
+    fn bad_associations_are_errors() {
+        assert!(load("associations: [a]\n").is_err());
+        assert!(load("associations:\n  \"*.zzz\": no-such-language\n").is_err());
+        assert!(load("associations:\n  \"*.zzz\": [markdown]\n").is_err());
+        assert!(load("associations:\n  *.zzz: markdown\n").is_err());
+    }
 }

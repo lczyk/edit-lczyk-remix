@@ -29,3 +29,4 @@ lsh-defs = { path = "./crates/lsh-defs" }
 polyflag = "0.3.0"
 stdext = { path = "./crates/stdext" }
 unicode-gen = { path = "./crates/unicode-gen" }
+yaml = { path = "./crates/yaml" }

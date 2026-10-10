@@ -28,9 +28,9 @@ lsh.workspace = true
 lsh-defs.workspace = true
 polyflag.workspace = true
 stdext.workspace = true
+yaml.workspace = true
 argh = "*"
 libc = "0.2"
-toml-span = { version = "0.7", default-features = false }
 version = { git = "https://github.com/lczyk/version", tag = "rust/v0.5.0" }
 
 [build-dependencies]

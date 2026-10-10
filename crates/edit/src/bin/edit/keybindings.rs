@@ -1,6 +1,6 @@
 //! Keybindings config loader.
 //!
-//! TOML file at `<config_dir>/keybindings.toml`. Created on first run from
+//! YAML file at `<config_dir>/keybindings.yaml`. Created on first run from
 //! the embedded default. Missing actions after load fall back to the default.
 //! An action takes one chord or a list of them; any of them triggers it.
 
@@ -15,9 +15,9 @@ use crate::apperr;
 use crate::settings;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-pub const DEFAULT_TOML: &str = include_str!("keybindings.macos.toml");
+pub const DEFAULT_YAML: &str = include_str!("keybindings.macos.yaml");
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-pub const DEFAULT_TOML: &str = include_str!("keybindings.linux.toml");
+pub const DEFAULT_YAML: &str = include_str!("keybindings.linux.yaml");
 
 /// Configurable user actions. Each has zero or more chords in the config.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -104,13 +104,13 @@ pub struct Keybindings {
 impl Keybindings {
     fn from_defaults() -> Self {
         let mut kb = Self { chords: std::array::from_fn(|_| Vec::new()) };
-        kb.merge_file(DEFAULT_TOML).expect("default keybindings must parse");
+        kb.merge_file(DEFAULT_YAML).expect("default keybindings must parse");
         kb
     }
 
     fn merge_file(&mut self, text: &str) -> apperr::Result<()> {
         let parsed =
-            parse_toml(text).map_err(|_| apperr::Error::SettingsInvalid("keybindings.toml"))?;
+            parse_yaml(text).map_err(|_| apperr::Error::SettingsInvalid("keybindings.yaml"))?;
         for &(action, name) in ACTION_KEYS.iter() {
             if let Some(chords) = parsed.get(name) {
                 self.chords[action as usize].clone_from(chords);
@@ -150,16 +150,16 @@ pub fn matches(action: Action, key: InputKey) -> bool {
 /// Path of the keybindings file, or `None` when no config dir exists.
 pub fn path() -> Option<PathBuf> {
     let mut p = settings::config_dir()?;
-    p.push("keybindings.toml");
+    p.push("keybindings.yaml");
     Some(p)
 }
 
-/// Debug helper: wipe the config directory and rewrite `keybindings.toml` from
-/// [`DEFAULT_TOML`]. Called by `--force-reset-config`.
+/// Debug helper: wipe the config directory and rewrite `keybindings.yaml` from
+/// [`DEFAULT_YAML`]. Called by `--force-reset-config`.
 #[cfg(debug_assertions)]
 pub fn force_reset() -> apperr::Result<()> {
     let Some(dir) = settings::config_dir() else { return Ok(()) };
-    for name in ["keybindings.toml", "associations.toml"] {
+    for name in ["keybindings.yaml", "associations.yaml"] {
         let p = dir.join(name);
         if let Err(e) = fs::remove_file(&p)
             && e.kind() != std::io::ErrorKind::NotFound
@@ -167,13 +167,13 @@ pub fn force_reset() -> apperr::Result<()> {
             return Err(e.into());
         }
     }
-    let kb = dir.join("keybindings.toml");
+    let kb = dir.join("keybindings.yaml");
     fs::create_dir_all(&dir)?;
-    fs::write(&kb, DEFAULT_TOML)?;
+    fs::write(&kb, DEFAULT_YAML)?;
     Ok(())
 }
 
-/// Load the keybindings file, auto-creating it from [`DEFAULT_TOML`] if missing.
+/// Load the keybindings file, auto-creating it from [`DEFAULT_YAML`] if missing.
 /// Called from `main` after args are parsed.
 pub fn load_or_create() -> apperr::Result<()> {
     let Some(path) = path() else { return Ok(()) };
@@ -184,8 +184,8 @@ pub fn load_or_create() -> apperr::Result<()> {
             if let Some(parent) = path.parent() {
                 let _ = fs::create_dir_all(parent);
             }
-            fs::write(&path, DEFAULT_TOML)?;
-            DEFAULT_TOML.to_string()
+            fs::write(&path, DEFAULT_YAML)?;
+            DEFAULT_YAML.to_string()
         }
         Err(e) => return Err(e.into()),
     };
@@ -195,36 +195,34 @@ pub fn load_or_create() -> apperr::Result<()> {
 
 // ---- parsing ----
 
-fn parse_toml(text: &str) -> Result<std::collections::HashMap<String, Vec<InputKey>>, String> {
+fn parse_yaml(text: &str) -> Result<std::collections::HashMap<String, Vec<InputKey>>, String> {
     use std::collections::HashMap;
 
-    let root = toml_span::parse(text).map_err(|e| e.to_string())?;
-    let table = root.as_table().ok_or_else(|| "non-table root".to_string())?;
-    let kb = table
-        .iter()
-        .find(|(k, _)| k.name == "keybindings")
-        .and_then(|(_, v)| v.as_table())
-        .ok_or_else(|| "missing [keybindings] table".to_string())?;
+    let root = yaml::parse(text).map_err(|e| e.to_string())?;
+    let kb = root
+        .get("keybindings")
+        .and_then(yaml::Value::as_map)
+        .ok_or_else(|| "missing keybindings mapping".to_string())?;
 
     let mut out: HashMap<String, Vec<InputKey>> = HashMap::new();
-    for (k, v) in kb.iter() {
-        let strs: Vec<&str> = if let Some(s) = v.as_str() {
-            vec![s]
-        } else if let Some(arr) = v.as_array() {
-            arr.iter()
-                .map(|v| v.as_str().ok_or_else(|| format!("{}: not a string", k.name)))
-                .collect::<Result<_, _>>()?
-        } else {
-            return Err(format!("{}: not a string or a list of strings", k.name));
+    for (name, v) in kb {
+        let strs: Vec<&str> = match v {
+            yaml::Value::Null => Vec::new(),
+            yaml::Value::String(s) => vec![s],
+            yaml::Value::Seq(items) => items
+                .iter()
+                .map(|v| v.as_str().ok_or_else(|| format!("{name}: not a string")))
+                .collect::<Result<_, _>>()?,
+            _ => return Err(format!("{name}: not a string or a list of strings")),
         };
         let mut chords = Vec::with_capacity(strs.len());
         for s in strs {
-            let key = parse_chord(s).ok_or_else(|| format!("{}: unknown chord {:?}", k.name, s))?;
+            let key = parse_chord(s).ok_or_else(|| format!("{name}: unknown chord {s:?}"))?;
             if key != vk::NULL {
                 chords.push(key);
             }
         }
-        out.insert(k.name.to_string(), chords);
+        out.insert(name.clone(), chords);
     }
     Ok(out)
 }
@@ -400,7 +398,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_toml_parses() {
+    fn default_yaml_parses() {
         let kb = Keybindings::from_defaults();
         let primary = if cfg!(any(target_os = "macos", target_os = "ios")) {
             kbmod::CMD
@@ -446,14 +444,15 @@ mod tests {
 
     #[test]
     fn an_action_takes_a_list_of_chords() {
-        const TOML: &str = r#"
-            [keybindings]
-            save = ["Ctrl+S", "F2"]
-            find = []
-            replace = ""
-        "#;
+        const YAML: &str = "
+keybindings:
+  save: [Ctrl+S, F2]
+  find: []
+  replace: \"\"
+  go_to_line:
+";
         let mut kb = Keybindings::from_defaults();
-        kb.merge_file(TOML).unwrap();
+        kb.merge_file(YAML).unwrap();
         assert_eq!(kb.chord(Action::Save), kbmod::CTRL | vk::S);
         assert!(kb.matches(Action::Save, kbmod::CTRL | vk::S));
         assert!(kb.matches(Action::Save, vk::F2));
@@ -461,12 +460,13 @@ mod tests {
         assert!(!kb.matches(Action::Find, vk::NULL));
         assert_eq!(kb.chord(Action::Replace), vk::NULL);
         assert!(!kb.matches(Action::Replace, vk::NULL));
+        assert_eq!(kb.chord(Action::GoToLine), vk::NULL);
     }
 
     #[test]
     fn a_list_with_a_non_string_is_rejected() {
         let mut kb = Keybindings::from_defaults();
-        assert!(kb.merge_file("[keybindings]\nsave = [\"Ctrl+S\", 1]").is_err());
+        assert!(kb.merge_file("keybindings:\n  save: [Ctrl+S, 1]").is_err());
     }
 
     #[test]
