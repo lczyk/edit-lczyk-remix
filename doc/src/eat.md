@@ -156,7 +156,7 @@ vi aliases mirror `less`.
 
 | keys | action |
 |---|---|
-| `q`, `Escape` | quit |
+| `q`, `Escape`, `Ctrl+Q`, `Ctrl+W` | quit |
 | `j` / `k`, `Down` / `Up` | scroll a line |
 | `PageDown` / `PageUp` | scroll a page |
 | `h` / `l`, `Left` / `Right` | scroll horizontally |

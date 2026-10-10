@@ -36,12 +36,13 @@ redo            = "Cmd+Shift+Z"
 focus_menubar   = "F10"
 select_all      = "Cmd+A"
 focus_statusbar = ""           # unbound
+exit            = ["Ctrl+Q", "Ctrl+W"]
 ```
 
 - **Modifier names:** `Ctrl`, `Alt`, `Shift`, `Cmd` (alias `Super`).
 - **Key names:** letter `A`-`Z`, digit `0`-`9`, `Up`/`Down`/`Left`/`Right`, `Home`/`End`/`PageUp`/`PageDown`, `Insert`/`Delete`, `Tab`/`Back`/`Return`/`Escape`/`Space`, `F1`..`F24`, `Numpad0`..`Numpad9`.
 - **Empty string** (`""`) leaves an action unbound. This is the linux default for several macOS-only chords (e.g. `delete_to_line_start`, `line_start`).
-- **One chord per action.** No multi-bind list. If you want both `Ctrl+Z` and `Cmd+Z` for undo, you'll have to pick one.
+- **A list binds several chords** to one action; any of them triggers it, and the menubar shows the first. `[]` leaves the action unbound, same as `""`. The six textarea actions above and `focus_menubar` only honour the first chord in a list.
 
 ## Cmd modifier on macOS
 
