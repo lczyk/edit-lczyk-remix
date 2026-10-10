@@ -94,7 +94,7 @@ User-facing detail (terminal compat, alacritty `option_as_alt`, `Cmd+C` swallowi
 
 ## Keybindings
 
-Config: `<config_dir>/keybindings.toml`, auto-created on first run from [keybindings.macos.toml](crates/edit/src/bin/edit/keybindings.macos.toml) / [keybindings.linux.toml](crates/edit/src/bin/edit/keybindings.linux.toml). The `Action` enum in [crates/edit/src/bin/edit/keybindings.rs](crates/edit/src/bin/edit/keybindings.rs) lists what's bindable -- menubar items and a few editor commands. Dialog-internal keys (Return/Escape/Arrows/Backspace) stay hardcoded.
+Config: `<config_dir>/keybindings.yaml`, auto-created on first run from [keybindings.macos.yaml](crates/edit/src/bin/edit/keybindings.macos.yaml) / [keybindings.linux.yaml](crates/edit/src/bin/edit/keybindings.linux.yaml). File associations live next to it in `associations.yaml`. The `Action` enum in [crates/edit/src/bin/edit/keybindings.rs](crates/edit/src/bin/edit/keybindings.rs) lists what's bindable -- menubar items and a few editor commands. Dialog-internal keys (Return/Escape/Arrows/Backspace) stay hardcoded.
 
 Full chord syntax + bindable-action reference: [doc/src/keybindings.md](doc/src/keybindings.md).
 
@@ -132,6 +132,7 @@ Terminal issues: check `vt.rs`, `sys/unix.rs`, and `edit::term::setup` first.
 - `lsh-bin` -- CLI for debugging LSH output.
 - `lsh-defs` -- bundled lsh language defs codegen + detection helpers + ansi-16 colourmap. Shared by `edit` and `edit::eat`. `detect::resolve` is the one detection chain (user associations, globs, shebang, content sniff, `PLAIN`); a buffer always has a language. The canonical highlight-kind colour table is `lsh::compiler::default_ansi16`; consumers map it via `Ansi16::sgr()` rather than transcribing it.
 - `gutter` -- per-line gutter mark computation + render (git-diff overlays). `GutterMark::Conflict` is the exception: it comes from the highlighter's per-line conflict tag, not the diff, and outranks it.
+- `yaml` -- the config-file YAML reader: JSON plus the common block syntax, no anchors or tags, no dependencies. Used for `keybindings.yaml` and `associations.yaml`.
 - `stdext` -- shared utilities (arena allocator, collections, SIMD helpers, sys shims).
 - `unicode-gen` -- codegen for Unicode LUTs (only needed to regenerate tables; tables are checked in).
 

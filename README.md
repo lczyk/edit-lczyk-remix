@@ -33,7 +33,7 @@ Notable differences from upstream, beyond the removals:
 - **English only.** No `i18n/`, no `loc()` indirection.
 - **`Cmd` is a first-class modifier** via the kitty keyboard protocol, so macOS
   chords feel native. See [doc/src/terminal-keyboard.md](doc/src/terminal-keyboard.md).
-- **Configurable keybindings** in `<config_dir>/keybindings.toml`. See
+- **Configurable keybindings** in `<config_dir>/keybindings.yaml`. See
   [doc/src/keybindings.md](doc/src/keybindings.md).
 - **`--quirks=` / `EDIT_QUIRKS=`** behaviour toggles rather than scattered
   flags. See [doc/src/quirks.md](doc/src/quirks.md).

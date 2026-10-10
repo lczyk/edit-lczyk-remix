@@ -103,7 +103,7 @@ reports the exit status plus the same trip list, rather than the bare
 ## Config isolation
 
 Each run points the child at a throwaway `XDG_CONFIG_HOME`, so `edit` creates
-a fresh `keybindings.toml` from the shipped platform defaults. Without it the
+a fresh `keybindings.yaml` from the shipped platform defaults. Without it the
 tests would inherit whatever is in your `~/.config/edit`, and a stale local
 config would quietly decide which chords work -- passing on your machine and
 failing on CI, or worse, the other way around.

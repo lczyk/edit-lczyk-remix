@@ -4,12 +4,12 @@ User-editable config file controls a subset of `edit`'s shortcuts. The rest (dia
 
 ## Config file location
 
-`<config_dir>/keybindings.toml`. Auto-created on first run from a platform-specific embedded default.
+`<config_dir>/keybindings.yaml`. Auto-created on first run from a platform-specific embedded default.
 
-- `$XDG_CONFIG_HOME/edit/keybindings.toml`
-- Fallback: `~/.config/edit/keybindings.toml`
+- `$XDG_CONFIG_HOME/edit/keybindings.yaml`
+- Fallback: `~/.config/edit/keybindings.yaml`
 
-Same path on Linux and macOS. Embedded defaults live at `crates/edit/src/bin/edit/keybindings.macos.toml` and `crates/edit/src/bin/edit/keybindings.linux.toml` respectively.
+Same path on Linux and macOS. Embedded defaults live at `crates/edit/src/bin/edit/keybindings.macos.yaml` and `crates/edit/src/bin/edit/keybindings.linux.yaml` respectively.
 
 ## What's bindable
 
@@ -30,19 +30,22 @@ Two consequences:
 
 ## Chord syntax
 
-```toml
-undo            = "Cmd+Z"
-redo            = "Cmd+Shift+Z"
-focus_menubar   = "F10"
-select_all      = "Cmd+A"
-focus_statusbar = ""           # unbound
-exit            = ["Ctrl+Q", "Ctrl+W"]
+```yaml
+keybindings:
+  undo:            Cmd+Z
+  redo:            Cmd+Shift+Z
+  focus_menubar:   F10
+  select_all:      Cmd+A
+  focus_statusbar: ""          # unbound
+  exit:            [Ctrl+Q, Ctrl+W]
 ```
+
+The file is YAML, read by the in-tree `yaml` crate: block and flow mappings and sequences, plain and quoted scalars, `|` / `>` block scalars and comments. Anchors, aliases and tags are rejected. A chord needs no quotes.
 
 - **Modifier names:** `Ctrl`, `Alt`, `Shift`, `Cmd` (alias `Super`).
 - **Key names:** letter `A`-`Z`, digit `0`-`9`, `Up`/`Down`/`Left`/`Right`, `Home`/`End`/`PageUp`/`PageDown`, `Insert`/`Delete`, `Tab`/`Back`/`Return`/`Escape`/`Space`, `F1`..`F24`, `Numpad0`..`Numpad9`.
-- **Empty string** (`""`) leaves an action unbound. This is the linux default for several macOS-only chords (e.g. `delete_to_line_start`, `line_start`).
-- **A list binds several chords** to one action; any of them triggers it, and the menubar shows the first. `[]` leaves the action unbound, same as `""`. The six textarea actions above and `focus_menubar` only honour the first chord in a list.
+- **Empty value** (`""`, or nothing after the colon) leaves an action unbound. This is the linux default for several macOS-only chords (e.g. `delete_to_line_start`, `line_start`).
+- **A list binds several chords** to one action; any of them triggers it, and the menubar shows the first. `[]` leaves the action unbound too. The six textarea actions above and `focus_menubar` only honour the first chord in a list.
 
 ## Cmd modifier on macOS
 
@@ -52,4 +55,4 @@ The chord still has to **reach** `edit` -- terminals frequently claim popular Cm
 
 ## Reloading
 
-`edit` reads `keybindings.toml` once at startup. To pick up changes, restart the editor.
+`edit` reads `keybindings.yaml` once at startup. To pick up changes, restart the editor.
