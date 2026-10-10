@@ -1,6 +1,7 @@
 # Edit keybindings (macOS).
 #
-# One chord per action. Modifiers: Ctrl, Alt, Shift, Cmd (Super).
+# One chord per action, or a list of them: exit = ["Ctrl+Q", "Ctrl+W"].
+# Modifiers: Ctrl, Alt, Shift, Cmd (Super).
 # Separate modifiers and the key with "+". Key names: letter A-Z, digit 0-9,
 # Up/Down/Left/Right, Home/End/PageUp/PageDown, Insert/Delete,
 # Tab/Back/Return/Escape/Space, F1..F24, Numpad0..Numpad9.
@@ -10,7 +11,8 @@
 [keybindings]
 # Ctrl even on macOS: every terminal claims Cmd+Q for its own quit, so binding
 # Exit there means the terminal dies without the save-changes prompt.
-exit             = "Ctrl+Q"
+# Same goes for the Ctrl+W alias: Cmd+W closes the terminal tab.
+exit             = ["Ctrl+Q", "Ctrl+W"]
 save             = "Cmd+S"
 
 undo             = "Cmd+Z"

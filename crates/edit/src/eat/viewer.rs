@@ -17,13 +17,13 @@ pub(crate) const H_SCROLL_STEP: CoordType = 8;
 /// into one shared handler is what would put the duplication back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ViewerKey {
-    /// `q` or Escape.
+    /// `q` or Escape, plus the editor's exit chords Ctrl+Q and Ctrl+W.
     Quit,
     /// Copy the selection. The textarea is mounted unfocused, so its own
     /// chord never fires and the view has to do this itself.
     Copy,
     SelectAll,
-    /// `w` -- toggle word wrap.
+    /// Bare `w` -- toggle word wrap.
     ToggleWrap,
     /// `r` -- load the source again.
     Reload,
@@ -55,8 +55,9 @@ pub(crate) fn classify(k: InputKey) -> Option<ViewerKey> {
     let bare = k.key();
     let shifted = k.modifiers_contains(kbmod::SHIFT);
     let primary = k.modifiers_contains(primary_modifier());
+    let ctrl = k.modifiers_contains(kbmod::CTRL);
 
-    if bare == vk::Q || bare == vk::ESCAPE {
+    if bare == vk::Q || bare == vk::ESCAPE || (bare == vk::W && ctrl) {
         Some(ViewerKey::Quit)
     } else if bare == vk::C && primary {
         Some(ViewerKey::Copy)
@@ -128,6 +129,13 @@ mod tests {
     fn quit_on_q_or_escape() {
         assert_eq!(key(vk::Q), Some(ViewerKey::Quit));
         assert_eq!(key(vk::ESCAPE), Some(ViewerKey::Quit));
+    }
+
+    #[test]
+    fn ctrl_w_quits_but_bare_w_wraps() {
+        assert_eq!(key(kbmod::CTRL | vk::Q), Some(ViewerKey::Quit));
+        assert_eq!(key(kbmod::CTRL | vk::W), Some(ViewerKey::Quit));
+        assert_eq!(key(vk::W), Some(ViewerKey::ToggleWrap));
     }
 
     #[test]

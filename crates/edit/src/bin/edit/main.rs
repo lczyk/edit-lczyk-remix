@@ -361,7 +361,7 @@ fn resolve(
         return None; // an unbound action, which no keystroke should match
     }
     for &(action, scope) in DISPATCH {
-        if keybindings::chord(action) != key {
+        if !keybindings::matches(action, key) {
             continue;
         }
         if scope == Scope::Document && focus_in_field {
@@ -613,6 +613,14 @@ mod dispatch_tests {
                 Some(Action::Exit),
                 "exit is not the field's to eat"
             );
+        });
+    }
+
+    #[test]
+    fn every_chord_of_a_multi_chord_action_dispatches() {
+        with_bindings(|| {
+            assert_eq!(resolve(kbmod::CTRL | vk::Q, false, true), Some(Action::Exit));
+            assert_eq!(resolve(kbmod::CTRL | vk::W, false, true), Some(Action::Exit));
         });
     }
 

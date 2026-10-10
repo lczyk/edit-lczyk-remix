@@ -2,6 +2,7 @@
 //!
 //! TOML file at `<config_dir>/keybindings.toml`. Created on first run from
 //! the embedded default. Missing actions after load fall back to the default.
+//! An action takes one chord or a list of them; any of them triggers it.
 
 use std::fs;
 use std::path::PathBuf;
@@ -18,7 +19,7 @@ pub const DEFAULT_TOML: &str = include_str!("keybindings.macos.toml");
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
 pub const DEFAULT_TOML: &str = include_str!("keybindings.linux.toml");
 
-/// Configurable user actions. Each has at most one chord in the config.
+/// Configurable user actions. Each has zero or more chords in the config.
 #[derive(Clone, Copy, PartialEq, Eq)]
 // Only so a failing dispatch assertion can name the action. Deriving it
 // unconditionally would put the variant names in the release binary.
@@ -97,34 +98,35 @@ pub const ACTION_KEYS: [(Action, &str); ACTION_COUNT] = [
 ];
 
 pub struct Keybindings {
-    chords: [InputKey; ACTION_COUNT],
+    chords: [Vec<InputKey>; ACTION_COUNT],
 }
 
 impl Keybindings {
     fn from_defaults() -> Self {
-        let mut chords = [vk::NULL; ACTION_COUNT];
-        let parsed = parse_toml(DEFAULT_TOML).expect("default keybindings must parse");
-        for &(action, name) in ACTION_KEYS.iter() {
-            if let Some(&chord) = parsed.get(name) {
-                chords[action as usize] = chord;
-            }
-        }
-        Self { chords }
+        let mut kb = Self { chords: std::array::from_fn(|_| Vec::new()) };
+        kb.merge_file(DEFAULT_TOML).expect("default keybindings must parse");
+        kb
     }
 
     fn merge_file(&mut self, text: &str) -> apperr::Result<()> {
         let parsed =
             parse_toml(text).map_err(|_| apperr::Error::SettingsInvalid("keybindings.toml"))?;
         for &(action, name) in ACTION_KEYS.iter() {
-            if let Some(&chord) = parsed.get(name) {
-                self.chords[action as usize] = chord;
+            if let Some(chords) = parsed.get(name) {
+                self.chords[action as usize].clone_from(chords);
             }
         }
         Ok(())
     }
 
+    /// The first chord bound to `action`, or [`vk::NULL`] when unbound. What
+    /// the menubar shows, and all a single-chord consumer gets.
     pub fn chord(&self, action: Action) -> InputKey {
-        self.chords[action as usize]
+        self.chords[action as usize].first().copied().unwrap_or(vk::NULL)
+    }
+
+    pub fn matches(&self, action: Action, key: InputKey) -> bool {
+        self.chords[action as usize].contains(&key)
     }
 }
 
@@ -139,6 +141,10 @@ pub fn borrow() -> Ref<'static, Keybindings> {
 
 pub fn chord(action: Action) -> InputKey {
     borrow().chord(action)
+}
+
+pub fn matches(action: Action, key: InputKey) -> bool {
+    borrow().matches(action, key)
 }
 
 /// Path of the keybindings file, or `None` when no config dir exists.
@@ -189,7 +195,7 @@ pub fn load_or_create() -> apperr::Result<()> {
 
 // ---- parsing ----
 
-fn parse_toml(text: &str) -> Result<std::collections::HashMap<String, InputKey>, String> {
+fn parse_toml(text: &str) -> Result<std::collections::HashMap<String, Vec<InputKey>>, String> {
     use std::collections::HashMap;
 
     let root = toml_span::parse(text).map_err(|e| e.to_string())?;
@@ -200,11 +206,25 @@ fn parse_toml(text: &str) -> Result<std::collections::HashMap<String, InputKey>,
         .and_then(|(_, v)| v.as_table())
         .ok_or_else(|| "missing [keybindings] table".to_string())?;
 
-    let mut out: HashMap<String, InputKey> = HashMap::new();
+    let mut out: HashMap<String, Vec<InputKey>> = HashMap::new();
     for (k, v) in kb.iter() {
-        let s = v.as_str().ok_or_else(|| format!("{}: not a string", k.name))?;
-        let key = parse_chord(s).ok_or_else(|| format!("{}: unknown chord {:?}", k.name, s))?;
-        out.insert(k.name.to_string(), key);
+        let strs: Vec<&str> = if let Some(s) = v.as_str() {
+            vec![s]
+        } else if let Some(arr) = v.as_array() {
+            arr.iter()
+                .map(|v| v.as_str().ok_or_else(|| format!("{}: not a string", k.name)))
+                .collect::<Result<_, _>>()?
+        } else {
+            return Err(format!("{}: not a string or a list of strings", k.name));
+        };
+        let mut chords = Vec::with_capacity(strs.len());
+        for s in strs {
+            let key = parse_chord(s).ok_or_else(|| format!("{}: unknown chord {:?}", k.name, s))?;
+            if key != vk::NULL {
+                chords.push(key);
+            }
+        }
+        out.insert(k.name.to_string(), chords);
     }
     Ok(out)
 }
@@ -390,6 +410,7 @@ mod tests {
         // Exit is the one action that stays on Ctrl everywhere: macOS
         // terminals claim Cmd+Q for their own quit.
         assert_eq!(kb.chord(Action::Exit), kbmod::CTRL | vk::Q);
+        assert!(kb.matches(Action::Exit, kbmod::CTRL | vk::W));
         assert_eq!(kb.chord(Action::Save), primary | vk::S);
         assert_eq!(kb.chord(Action::FocusMenubar), vk::F10);
     }
@@ -421,6 +442,31 @@ mod tests {
             assert_eq!(kb.chord(Action::DeleteToLineStart), vk::NULL);
             assert_eq!(kb.chord(Action::DeleteToLineEnd), vk::NULL);
         }
+    }
+
+    #[test]
+    fn an_action_takes_a_list_of_chords() {
+        const TOML: &str = r#"
+            [keybindings]
+            save = ["Ctrl+S", "F2"]
+            find = []
+            replace = ""
+        "#;
+        let mut kb = Keybindings::from_defaults();
+        kb.merge_file(TOML).unwrap();
+        assert_eq!(kb.chord(Action::Save), kbmod::CTRL | vk::S);
+        assert!(kb.matches(Action::Save, kbmod::CTRL | vk::S));
+        assert!(kb.matches(Action::Save, vk::F2));
+        assert_eq!(kb.chord(Action::Find), vk::NULL);
+        assert!(!kb.matches(Action::Find, vk::NULL));
+        assert_eq!(kb.chord(Action::Replace), vk::NULL);
+        assert!(!kb.matches(Action::Replace, vk::NULL));
+    }
+
+    #[test]
+    fn a_list_with_a_non_string_is_rejected() {
+        let mut kb = Keybindings::from_defaults();
+        assert!(kb.merge_file("[keybindings]\nsave = [\"Ctrl+S\", 1]").is_err());
     }
 
     #[test]
