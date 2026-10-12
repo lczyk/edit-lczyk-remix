@@ -20,9 +20,11 @@ stdout is a terminal:
 | not a tty | anything | ansi stream -- highlight, write through. Pipes, redirects and the pager all land here. |
 | tty | single file (not a directory), no `--plain`, no `--line-range` | alt-screen viewer |
 | tty | `-x -- CMD`, no `--plain`, no `--line-range` | the same viewer over the command's output |
+| tty | `-w DIR`, no `--plain`, no `--line-range` | the same viewer over the directory's listing |
 
-`-w` makes the viewer live (see [Live mode](#live-mode)); it never changes
-which renderer is picked, and errors where the viewer would not be.
+`-w` makes the viewer live (see [Live mode](#live-mode)); apart from a
+directory, which only takes the viewer live, it never changes which renderer
+is picked, and errors where the viewer would not be.
 
 `--plain` (`-p`) drops highlighting, decorations and paging -- it makes `eat`
 behave like plain `cat`.
@@ -115,25 +117,30 @@ output (`diff`, `grep`) is shown, and the header still notes the exit code.
 `-w` makes the viewer load the source again whenever it changes, as if `r`
 had been pressed: a file is stat'ed every interval and reloaded on a change,
 a command (`-w -x -- CMD`) is run every interval and reloaded when its output
-differs. The viewport stays where the reader left it, pulled back only as far
-as keeps the last row on the bottom edge when the content got shorter.
+differs, and a directory is listed every interval and reloaded when the
+listing differs -- a file edited inside it leaves the directory's own stat
+alone, and the git column needs `git`, so there is nothing cheaper to ask.
+The viewport stays where the reader left it, pulled back only as far as keeps
+the last row on the bottom edge when the content got shorter.
 
 ```sh
 eat -w FILE                        # every second
 eat -w 500ms -x -- git diff        # every half second
+eat -w 2s .                        # the listing, git column included
 ```
 
 The optional value accepts `500ms`, `30s`, `1m`, `1.5s`, or a bare number
 meaning seconds. Bare `-w` polls every second, or every
 `EAT_WATCH_INTERVAL_MS` milliseconds when that is set. Intervals below 50 ms
-are clamped, and a command is polled no faster than every 250 ms, since each
-poll is a spawn. The header says `live 500ms` while it is on. A command
-slower than the interval is simply run again when it returns; polls that find
-it still running do nothing.
+are clamped, and a command or a directory is polled no faster than every
+250 ms, since each poll is a spawn (`git status`, for a directory inside a
+repository). The header says `live 500ms` while it is on. A command slower
+than the interval is simply run again when it returns; polls that find it
+still running do nothing.
 
 Live mode needs the viewer, so these error with exit code 2 rather than
 half-working: stdout not a tty, `--plain`, `--line-range`, no path, `-`,
-more than one path, a directory.
+more than one path.
 
 Without `-w` the viewer still polls a file every two seconds, but only to
 raise a `[modified on disk]` marker in the header; the buffer moves on `r`
@@ -163,7 +170,7 @@ vi aliases mirror `less`.
 | `g`, `Home` | jump to top |
 | `G`, `End` | jump to bottom |
 | `w` | toggle word wrap |
-| `r` | load the source again: re-read the file, or re-run the command |
+| `r` | load the source again: re-read the file, re-run the command, or list the directory again |
 | `Cmd+C` / `Ctrl+C` | copy the selection |
 | `Cmd+A` / `Ctrl+A` | select all |
 
@@ -173,9 +180,10 @@ reach the program.
 
 ## Directories
 
-A directory argument is listed where a file's contents would go -- always via
-the ansi stream, so on a tty a lone `eat DIR` goes to the pager rather than
-the viewer:
+A directory argument is listed where a file's contents would go -- via the
+ansi stream, so on a tty a lone `eat DIR` goes to the pager rather than the
+viewer, unless it is live (`-w DIR`, see [Live mode](#live-mode)), where the
+viewer shows the same rows in the same colours:
 
 ```
    - -M src/
