@@ -5,8 +5,7 @@
 //! `eat foo.go | grep` cannot consume one -- so it composes escape
 //! sequences directly instead.
 
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, IsTerminal, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -17,8 +16,10 @@ use stdext::arena::scratch_arena;
 
 use super::cli::{Cli, ColorMode, LineRange, PagingMode, prog_name, resolve_use_color};
 use super::detect::head_bytes;
+use super::listing::Row;
 use super::route::SourceSpec;
-use super::{exec, gutter_view, listing, theme};
+use super::source::{Content, Load, Snapshot, Source};
+use super::{gutter_view, theme};
 use lsh_defs::detect::{NO_USER_ASSOCIATIONS, find_language, resolve};
 
 /// resolve the pager binary path.
@@ -149,11 +150,11 @@ fn print_highlighted(
     Ok(())
 }
 
-/// write a directory listing's rows, which arrive already coloured, with
-/// the same header and line-number prefix a file would get.
+/// write a directory listing's rows with the same header and line-number
+/// prefix a file would get.
 fn write_listing(
     writer: &mut dyn Write,
-    rows: &[String],
+    rows: &[Row],
     first_line: usize,
     number_width: Option<usize>,
     header: Option<&str>,
@@ -164,7 +165,7 @@ fn write_listing(
         if let Some(width) = number_width {
             gutter_view::write_prefix(writer, first_line + i, width, GutterMark::None, use_color)?;
         }
-        writeln!(writer, "{row}")?;
+        writeln!(writer, "{}", row.ansi(use_color))?;
     }
     Ok(())
 }
@@ -179,7 +180,7 @@ fn write_header(writer: &mut dyn Write, header: Option<&str>, use_color: bool) -
 
 /// the slice of `all` a line range selects, plus the 1-based line number
 /// of its first row.
-fn apply_line_range<'a>(all: &'a [String], range: Option<&LineRange>) -> (&'a [String], usize) {
+fn apply_line_range<'a, T>(all: &'a [T], range: Option<&LineRange>) -> (&'a [T], usize) {
     let first_line = range.map_or(1, |r| r.start.unwrap_or(1));
     let Some(range) = range else {
         return (all, first_line);
@@ -219,20 +220,6 @@ fn open_pager_sink(
     Ok((Box::new(stdin), child))
 }
 
-/// read a file into a Vec of lines.
-pub(crate) fn read_file(path: &Path) -> io::Result<Vec<String>> {
-    let file = File::open(path)?;
-    let reader = BufReader::with_capacity(128 * 1024, file);
-    reader.lines().collect()
-}
-
-/// read stdin into a Vec of lines.
-fn read_stdin() -> io::Result<Vec<String>> {
-    let stdin = io::stdin();
-    let reader = BufReader::with_capacity(128 * 1024, stdin.lock());
-    reader.lines().collect()
-}
-
 /// run the cat-like path over the sources, in order.
 pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRange>) -> ExitCode {
     let mut has_error = false;
@@ -243,8 +230,6 @@ pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRang
     let lang_override = cli.language.as_deref().and_then(find_language);
 
     let color_map = theme::color_map();
-
-    let inputs = sources;
 
     // decide paging + colour once for the whole run so a multi-file invocation
     // shares one pager rather than spawning one per file.
@@ -281,22 +266,33 @@ pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRang
     // written what it did produce.
     let mut command_status: Option<i32> = None;
 
-    for input in inputs {
+    for spec in sources {
         if sink_closed {
             break;
         }
-        if let SourceSpec::Dir(path) = input {
-            let all = match listing::render(path, plain, use_color && !plain) {
-                Ok(rows) => rows,
-                Err(e) => {
-                    eprintln!("{}: {}: {e}", prog_name(), path.display());
-                    has_error = true;
-                    continue;
-                }
-            };
+        let mut source = Source::new(spec.clone(), plain);
+        let (content, failure) = match source.load() {
+            Ok(Load::New(Snapshot { content, failure })) => (Some(content), failure),
+            Ok(Load::Unchanged(failure)) => (None, failure),
+            Err(e) => {
+                eprintln!("{}: {}: {e}", prog_name(), source.label());
+                has_error = true;
+                continue;
+            }
+        };
+        if let Some(f) = failure {
+            let _ = io::stderr().write_all(&f.stderr);
+            command_status = Some(f.status.code().unwrap_or(1));
+        }
+        let Some(content) = content else { continue };
+
+        let header_label = (!plain && stdout_is_tty && sources.len() > 1)
+            .then(|| source.path().map(|p| p.display().to_string()))
+            .flatten();
+        let header = header_label.as_deref();
+
+        if let Content::Rows(all) = content {
             let (rows, first_line) = apply_line_range(&all, line_range.as_ref());
-            let label = path.display().to_string();
-            let header = (!plain && stdout_is_tty && inputs.len() > 1).then_some(label.as_str());
             let number_width = (show_numbers && !plain).then(|| all.len().to_string().len());
             match write_listing(sink.as_mut(), rows, first_line, number_width, header, use_color) {
                 Ok(()) => {}
@@ -308,53 +304,19 @@ pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRang
             }
             continue;
         }
-        let (lines, path_for_detection, header_label) = match input {
-            SourceSpec::Dir(_) => unreachable!("listed above"),
-            SourceSpec::File(path) => match read_file(path) {
-                Ok(lines) => {
-                    let label = (inputs.len() > 1).then(|| path.display().to_string());
-                    (lines, Some(path.as_path()), label)
-                }
-                Err(e) => {
-                    eprintln!("{}: {}: {e}", prog_name(), path.display());
-                    has_error = true;
-                    continue;
-                }
-            },
-            SourceSpec::Stdin => match read_stdin() {
-                Ok(lines) => (lines, None, None),
-                Err(e) => {
-                    eprintln!("{}: stdin: {e}", prog_name());
-                    has_error = true;
-                    continue;
-                }
-            },
-            SourceSpec::Command(argv) => match exec::run(argv) {
-                Ok(out) => {
-                    if !out.status.success() {
-                        let _ = io::stderr().write_all(&out.stderr);
-                        command_status = Some(out.status.code().unwrap_or(1));
-                    }
-                    match out.stdout.lines().collect::<io::Result<Vec<String>>>() {
-                        Ok(lines) => (lines, None, None),
-                        Err(e) => {
-                            eprintln!("{}: {}: {e}", prog_name(), exec::label(argv));
-                            has_error = true;
-                            continue;
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("{}: {}: {e}", prog_name(), exec::label(argv));
-                    has_error = true;
-                    continue;
-                }
-            },
-        };
 
-        // apply line range: `shown` is the slice, `all` stays around so the
+        let all = match content.lines() {
+            Ok(lines) => lines,
+            Err(e) => {
+                eprintln!("{}: {}: {e}", prog_name(), source.label());
+                has_error = true;
+                continue;
+            }
+        };
+        let path_for_detection = source.path();
+
+        // apply line range: `lines` is the slice, `all` stays around so the
         // gutter's marks are indexed by the file's own line numbers.
-        let all = lines;
         let (lines, first_line) = apply_line_range(&all, line_range.as_ref());
 
         let lang = lang_override.unwrap_or_else(|| {
@@ -377,8 +339,6 @@ pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRang
             }
             continue;
         }
-
-        let header = if stdout_is_tty && inputs.len() > 1 { header_label.as_deref() } else { None };
 
         // build the gutter once per file when -n is on and we have a path to
         // resolve a baseline against. for stdin or with -n off, no gutter.

@@ -7,23 +7,105 @@
 //! Control characters in names are escaped, so a hostile filename cannot
 //! drive the terminal. A directory whose only entry is another directory
 //! is shown with it, `foo/bar/`, down to the first that isn't.
+//!
+//! A row is text plus the spans to colour it ([`Row`]); the sink decides
+//! whether that becomes sgr ([`Row::ansi`]) or framebuffer attributes.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs;
 use std::io;
+use std::ops::Range;
 use std::path::Path;
 
+use lsh::runtime::Ansi16;
 use lsh_defs::detect::process_file_associations;
 use lsh_defs::{FILE_ASSOCIATIONS, PLAIN};
 
 use crate::hash::hash_str;
 
-const ANSI_RESET: &str = "\x1b[m";
-const ANSI_DIM: &str = "\x1b[2m";
-const ANSI_DIR: &str = "\x1b[1;34m";
-const ANSI_SYMLINK: &str = "\x1b[36m";
+/// One listing row: the text and the spans that colour parts of it, in
+/// order and non-overlapping.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Row {
+    pub(crate) text: String,
+    pub(crate) spans: Vec<Span>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Span {
+    pub(crate) range: Range<usize>,
+    pub(crate) style: Style,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct Style {
+    pub(crate) color: Option<Ansi16>,
+    pub(crate) bold: bool,
+    pub(crate) dim: bool,
+}
+
+const DIM: Style = Style { color: None, bold: false, dim: true };
+const DIR: Style = Style { color: Some(Ansi16::Blue), bold: true, dim: false };
+const SYMLINK: Style = Style { color: Some(Ansi16::Cyan), bold: false, dim: false };
+
+impl Style {
+    fn color(color: Ansi16) -> Style {
+        Style { color: Some(color), bold: false, dim: false }
+    }
+
+    /// The sgr sequence that starts this style, `\x1b[1;34m` for a bold
+    /// blue, or empty when there is nothing to set.
+    pub(crate) fn sgr(&self) -> String {
+        let mut params: Vec<String> = Vec::new();
+        if self.bold {
+            params.push("1".to_string());
+        }
+        if self.dim {
+            params.push("2".to_string());
+        }
+        if let Some(c) = self.color {
+            let n = c as u8;
+            params.push(if n < 8 { 30 + n } else { 90 + n - 8 }.to_string());
+        }
+        if params.is_empty() { String::new() } else { format!("\x1b[{}m", params.join(";")) }
+    }
+}
+
+impl Row {
+    fn plain(text: String) -> Row {
+        Row { text, spans: Vec::new() }
+    }
+
+    fn push(&mut self, text: &str, style: Option<Style>) {
+        let start = self.text.len();
+        self.text.push_str(text);
+        if let Some(style) = style
+            && style != Style::default()
+        {
+            self.spans.push(Span { range: start..self.text.len(), style });
+        }
+    }
+
+    /// The row as ansi text: each span wrapped in its sgr and a reset.
+    pub(crate) fn ansi(&self, use_color: bool) -> String {
+        if !use_color || self.spans.is_empty() {
+            return self.text.clone();
+        }
+        let mut out = String::with_capacity(self.text.len() + self.spans.len() * 12);
+        let mut at = 0;
+        for span in &self.spans {
+            out.push_str(&self.text[at..span.range.start]);
+            out.push_str(&span.style.sgr());
+            out.push_str(&self.text[span.range.clone()]);
+            out.push_str("\x1b[m");
+            at = span.range.end;
+        }
+        out.push_str(&self.text[at..]);
+        out
+    }
+}
 
 struct Entry {
     name: String,
@@ -64,14 +146,14 @@ impl Entry {
     }
 }
 
-/// Render the listing of `dir`, one string per row. `plain` drops
+/// Render the listing of `dir`, one row per entry. `plain` drops
 /// everything but the names.
-pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec<String>> {
+pub(crate) fn render(dir: &Path, plain: bool) -> io::Result<Vec<Row>> {
     let mut entries = read_entries(dir)?;
     sort_entries(&mut entries);
 
     if plain {
-        return Ok(entries.iter().map(Entry::shown_name).collect());
+        return Ok(entries.iter().map(|e| Row::plain(e.shown_name())).collect());
     }
 
     let git = gutter::git::dir_status(dir).ok().map(|status| {
@@ -83,20 +165,20 @@ pub(crate) fn render(dir: &Path, plain: bool, use_color: bool) -> io::Result<Vec
         .iter()
         .enumerate()
         .map(|(i, e)| {
-            let mut row = String::new();
+            let mut row = Row::plain(String::new());
             if e.is_dir || e.link_target.is_some() {
-                push_painted(&mut row, "   -", ANSI_DIM, use_color);
+                row.push("   -", Some(DIM));
             } else {
-                row.push_str(&format!("{:>4}", human_size(e.size)));
+                row.push(&format!("{:>4}", human_size(e.size)), None);
             }
-            row.push(' ');
+            row.push(" ", None);
             if let Some(cols) = &git {
                 for &c in &cols[i] {
-                    push_painted(&mut row, c.encode_utf8(&mut [0; 4]), git_color(c), use_color);
+                    row.push(c.encode_utf8(&mut [0; 4]), Some(git_style(c)));
                 }
-                row.push(' ');
+                row.push(" ", None);
             }
-            push_name(&mut row, dir, e, use_color);
+            push_name(&mut row, dir, e);
             row
         })
         .collect();
@@ -167,19 +249,18 @@ fn sort_entries(entries: &mut [Entry]) {
     });
 }
 
-fn push_name(row: &mut String, dir: &Path, e: &Entry, use_color: bool) {
-    let shown = e.shown_name();
-    let color = if e.link_target.is_some() {
-        ANSI_SYMLINK
+fn push_name(row: &mut Row, dir: &Path, e: &Entry) {
+    let style = if e.link_target.is_some() {
+        Some(SYMLINK)
     } else if e.is_dir {
-        ANSI_DIR
+        Some(DIR)
     } else {
-        language_color(&dir.join(&e.name))
+        language_color(&dir.join(&e.name)).map(Style::color)
     };
-    push_painted(row, &shown, color, use_color);
+    row.push(&e.shown_name(), style);
     if let Some(target) = &e.link_target {
-        row.push_str(" -> ");
-        row.push_str(&escape_controls(target));
+        row.push(" -> ", None);
+        row.push(&escape_controls(target), None);
     }
 }
 
@@ -199,35 +280,26 @@ fn escape_controls(s: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-fn push_painted(row: &mut String, text: &str, color: &str, use_color: bool) {
-    if use_color && !color.is_empty() {
-        row.push_str(color);
-        row.push_str(text);
-        row.push_str(ANSI_RESET);
-    } else {
-        row.push_str(text);
-    }
-}
-
-/// The sgr for a file's language, or `""` when its name resolves to none.
-fn language_color(path: &Path) -> &'static str {
-    const HUES: [&str; 6] =
-        ["\x1b[31m", "\x1b[32m", "\x1b[33m", "\x1b[34m", "\x1b[35m", "\x1b[36m"];
+/// The hue for a file's language, or `None` when its name resolves to
+/// none. Hashed off the language id, so a language keeps its colour.
+fn language_color(path: &Path) -> Option<Ansi16> {
+    const HUES: [Ansi16; 6] =
+        [Ansi16::Red, Ansi16::Green, Ansi16::Yellow, Ansi16::Blue, Ansi16::Magenta, Ansi16::Cyan];
     match process_file_associations(FILE_ASSOCIATIONS, path) {
         Some(lang) if !std::ptr::eq(lang, PLAIN) => {
-            HUES[(hash_str(0, lang.id) % HUES.len() as u64) as usize]
+            Some(HUES[(hash_str(0, lang.id) % HUES.len() as u64) as usize])
         }
-        _ => "",
+        _ => None,
     }
 }
 
-fn git_color(c: char) -> &'static str {
+fn git_style(c: char) -> Style {
     match c {
-        'N' => "\x1b[32m",
-        'M' => "\x1b[34m",
-        'D' | 'U' => "\x1b[31m",
-        'R' | 'T' => "\x1b[33m",
-        _ => ANSI_DIM,
+        'N' => Style::color(Ansi16::Green),
+        'M' => Style::color(Ansi16::Blue),
+        'D' | 'U' => Style::color(Ansi16::Red),
+        'R' | 'T' => Style::color(Ansi16::Yellow),
+        _ => DIM,
     }
 }
 
@@ -341,8 +413,7 @@ mod tests {
         fs::write(dir.join(".hidden"), "").unwrap();
         fs::create_dir(dir.join("zdir")).unwrap();
         fs::create_dir(dir.join(".git-like")).unwrap();
-        let rows = render(&dir, true, false).unwrap();
-        assert_eq!(rows, [".git-like/", "zdir/", ".hidden", "A.txt", "b.txt"]);
+        assert_eq!(texts(&dir, true), [".git-like/", "zdir/", ".hidden", "A.txt", "b.txt"]);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -353,7 +424,7 @@ mod tests {
         fs::write(dir.join("f.rs"), "fn main() {}\n").unwrap();
         std::os::unix::fs::symlink("real", dir.join("to-dir")).unwrap();
         std::os::unix::fs::symlink("f.rs", dir.join("to-file")).unwrap();
-        let rows = render(&dir, false, false).unwrap();
+        let rows = texts(&dir, false);
         assert!(rows[0].ends_with("real/"), "{rows:?}");
         assert!(rows[1].ends_with("to-dir -> real"), "{rows:?}");
         assert!(rows[2].ends_with("f.rs"), "{rows:?}");
@@ -370,9 +441,8 @@ mod tests {
         let dir = scratch_dir("row");
         fs::write(dir.join("f.txt"), "x".repeat(1234)).unwrap();
         fs::create_dir(dir.join("d")).unwrap();
-        let rows = render(&dir, false, false).unwrap();
         // temp_dir is outside any repo, so there is no status column.
-        assert_eq!(rows, ["   - d/", "1.2k f.txt"]);
+        assert_eq!(texts(&dir, false), ["   - d/", "1.2k f.txt"]);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -380,9 +450,32 @@ mod tests {
     fn a_language_keeps_its_colour_and_plain_text_gets_none() {
         let a = language_color(Path::new("x/one.rs"));
         let b = language_color(Path::new("y/two.rs"));
-        assert!(!a.is_empty());
+        assert!(a.is_some());
         assert_eq!(a, b);
-        assert_eq!(language_color(Path::new("README")), "");
+        assert_eq!(language_color(Path::new("README")), None);
+    }
+
+    #[test]
+    fn a_style_is_one_sgr_and_a_row_wraps_each_span_in_it() {
+        assert_eq!(DIR.sgr(), "\x1b[1;34m");
+        assert_eq!(DIM.sgr(), "\x1b[2m");
+        assert_eq!(Style::color(Ansi16::Red).sgr(), "\x1b[31m");
+        assert_eq!(Style::color(Ansi16::BrightCyan).sgr(), "\x1b[96m");
+        assert_eq!(Style::default().sgr(), "");
+        let mut row = Row::plain(String::new());
+        row.push("   -", Some(DIM));
+        row.push(" ", None);
+        row.push("src/", Some(DIR));
+        assert_eq!(row.text, "   - src/");
+        assert_eq!(row.ansi(true), "\x1b[2m   -\x1b[m \x1b[1;34msrc/\x1b[m");
+        assert_eq!(row.ansi(false), "   - src/");
+        // A default style is no span at all.
+        row.push("x", Some(Style::default()));
+        assert_eq!(row.spans.len(), 2);
+    }
+
+    fn texts(dir: &Path, plain: bool) -> Vec<String> {
+        render(dir, plain).unwrap().into_iter().map(|r| r.text).collect()
     }
 
     #[test]
@@ -420,7 +513,8 @@ mod tests {
         let dir = scratch_dir("controls");
         fs::write(dir.join("evil\x1b]0;title\x07.txt"), "").unwrap();
         for plain in [true, false] {
-            let rows = render(&dir, plain, true).unwrap();
+            let rows: Vec<String> =
+                render(&dir, plain).unwrap().iter().map(|r| r.ansi(true)).collect();
             assert!(rows[0].contains("evil\\u{1b}]0;title\\u{7}.txt"), "{rows:?}");
             assert!(!rows[0].contains('\x07'), "{rows:?}");
         }
@@ -479,9 +573,8 @@ mod tests {
         fs::write(dir.join("foo/bar/baz/y.rs"), "").unwrap();
         fs::create_dir_all(dir.join("a/b/c/d/e")).unwrap();
         fs::write(dir.join("f.txt"), "").unwrap();
-        assert_eq!(render(&dir, true, false).unwrap(), ["a/b/c/d/e/", "foo/bar/baz/", "f.txt"]);
-        let rows = render(&dir, false, false).unwrap();
-        assert_eq!(rows, ["   - a/b/c/d/e/", "   - foo/bar/baz/", "   0 f.txt"]);
+        assert_eq!(texts(&dir, true), ["a/b/c/d/e/", "foo/bar/baz/", "f.txt"]);
+        assert_eq!(texts(&dir, false), ["   - a/b/c/d/e/", "   - foo/bar/baz/", "   0 f.txt"]);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -495,7 +588,7 @@ mod tests {
         fs::write(dir.join("dot/.hidden"), "").unwrap();
         fs::create_dir_all(dir.join("top/a")).unwrap();
         fs::create_dir(dir.join("top/b")).unwrap();
-        assert_eq!(render(&dir, true, false).unwrap(), ["dot/", "one/two/", "top/"]);
+        assert_eq!(texts(&dir, true), ["dot/", "one/two/", "top/"]);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -510,9 +603,8 @@ mod tests {
         // A link to a dir holding a sole subdirectory is not expanded either.
         fs::create_dir_all(dir.join("real/inner")).unwrap();
         std::os::unix::fs::symlink("real", dir.join("to-real")).unwrap();
-        let rows = render(&dir, true, false).unwrap();
-        assert_eq!(rows, ["f/g/", "l/m/", "real/inner/", "target/", "to-real"]);
-        let rows = render(&dir, false, false).unwrap();
+        assert_eq!(texts(&dir, true), ["f/g/", "l/m/", "real/inner/", "target/", "to-real"]);
+        let rows = texts(&dir, false);
         assert!(rows[4].ends_with(" to-real -> real"), "{rows:?}");
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -523,10 +615,11 @@ mod tests {
         let dir = scratch_dir("chain-perm");
         fs::create_dir_all(dir.join("p/q/r")).unwrap();
         fs::set_permissions(dir.join("p/q"), fs::Permissions::from_mode(0o000)).unwrap();
-        let rows = render(&dir, true, false);
+        let rows = render(&dir, true);
         fs::set_permissions(dir.join("p/q"), fs::Permissions::from_mode(0o755)).unwrap();
         // Root reads through a 000 dir, so the chain may run on to r.
-        assert!(matches!(rows.unwrap().as_slice(), [s] if s == "p/q/" || s == "p/q/r/"));
+        let rows = rows.unwrap();
+        assert!(matches!(rows.as_slice(), [r] if r.text == "p/q/" || r.text == "p/q/r/"));
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -534,8 +627,7 @@ mod tests {
     fn every_segment_of_a_chain_is_escaped() {
         let dir = scratch_dir("chain-escape");
         fs::create_dir_all(dir.join("a\x1b/b\x07c")).unwrap();
-        let rows = render(&dir, true, false).unwrap();
-        assert_eq!(rows, ["a\\u{1b}/b\\u{7}c/"]);
+        assert_eq!(texts(&dir, true), ["a\\u{1b}/b\\u{7}c/"]);
         fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -22,6 +22,7 @@ pub mod exec;
 pub mod gutter_view;
 pub mod listing;
 pub mod route;
+pub mod source;
 pub mod stream;
 pub mod theme;
 pub mod viewer;
