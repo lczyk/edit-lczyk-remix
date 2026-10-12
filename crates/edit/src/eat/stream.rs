@@ -7,7 +7,7 @@
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 
 use gutter::GutterMark;
@@ -15,10 +15,9 @@ use lsh::runtime::{ConflictTag, Runtime};
 use lsh_defs::{ASSEMBLY, CHARSETS, STRINGS};
 use stdext::arena::scratch_arena;
 
-use super::cli::{
-    ColorMode, LineRange, PagingMode, WrapMode, print_short_help, prog_name, resolve_use_color,
-};
+use super::cli::{Cli, ColorMode, LineRange, PagingMode, prog_name, resolve_use_color};
 use super::detect::head_bytes;
+use super::route::SourceSpec;
 use super::{exec, gutter_view, listing, theme};
 use lsh_defs::detect::{NO_USER_ASSOCIATIONS, find_language, resolve};
 
@@ -234,78 +233,38 @@ fn read_stdin() -> io::Result<Vec<String>> {
     reader.lines().collect()
 }
 
-/// run the cat-like path over a list of files and optional stdin.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run(
-    files: &[String],
-    exec: bool,
-    language_override: Option<&str>,
-    plain: bool,
-    show_numbers: bool,
-    line_range: Option<LineRange>,
-    color_mode: ColorMode,
-    paging_mode: PagingMode,
-    wrap_mode: WrapMode,
-) -> ExitCode {
+/// run the cat-like path over the sources, in order.
+pub(crate) fn run(sources: &[SourceSpec], cli: &Cli, line_range: Option<LineRange>) -> ExitCode {
     let mut has_error = false;
+    let plain = cli.plain;
+    let show_numbers = cli.number;
 
-    // resolve overridden language
-    let lang_override = language_override.and_then(find_language);
-    if let Some(name) = language_override
-        && lang_override.is_none()
-    {
-        eprintln!("{}: unknown language '{name}'", prog_name());
-        return ExitCode::from(2);
-    }
+    // `main` has already rejected an unknown name.
+    let lang_override = cli.language.as_deref().and_then(find_language);
 
     let color_map = theme::color_map();
 
-    let stdin_is_tty = io::stdin().is_terminal();
-
-    // tty + no args -> short help
-    if stdin_is_tty && files.is_empty() && !exec {
-        return print_short_help();
-    }
-
-    // collect inputs: expand "-" to stdin at its position
-    let mut inputs: Vec<EatInput> = Vec::new();
-    if exec {
-        inputs.push(EatInput::Command(files.to_vec()));
-    } else if files.is_empty() {
-        // no args, stdin piped
-        inputs.push(EatInput::Stdin);
-    } else {
-        for f in files {
-            if f == "-" {
-                inputs.push(EatInput::Stdin);
-            } else {
-                inputs.push(EatInput::File(PathBuf::from(f)));
-            }
-        }
-    }
-
-    // filter to actual files (not stdin) for multi-file header logic
-    let file_count = inputs.iter().filter(|i| matches!(i, EatInput::File(_))).count();
+    let inputs = sources;
 
     // decide paging + colour once for the whole run so a multi-file invocation
     // shares one pager rather than spawning one per file.
     let stdout_is_tty = io::stdout().is_terminal();
-    let want_page = match paging_mode {
+    let want_page = match cli.paging {
         PagingMode::Always => true,
         PagingMode::Never => false,
         PagingMode::Auto => stdout_is_tty,
     };
     let pager_path = if want_page { resolve_pager() } else { None };
-    let use_color = match color_mode {
+    let use_color = match cli.color {
         ColorMode::Never => false,
         // through the pager pipe, stdout-is-tty would read false; treat paging
         // as a tty for colour purposes. otherwise consult env + tty.
-        _ => pager_path.is_some() || resolve_use_color(color_mode, stdout_is_tty),
+        _ => pager_path.is_some() || resolve_use_color(cli.color, stdout_is_tty),
     };
 
     let mut pager_child: Option<std::process::Child> = None;
     let mut sink: Box<dyn Write> = match pager_path.as_deref() {
-        Some(path) => match open_pager_sink(path, wrap_mode.resolve()) {
+        Some(path) => match open_pager_sink(path, cli.wrap.resolve()) {
             Ok((w, c)) => {
                 pager_child = Some(c);
                 w
@@ -322,13 +281,11 @@ pub(crate) fn run(
     // written what it did produce.
     let mut command_status: Option<i32> = None;
 
-    for input in &inputs {
+    for input in inputs {
         if sink_closed {
             break;
         }
-        if let EatInput::File(path) = input
-            && path.is_dir()
-        {
+        if let SourceSpec::Dir(path) = input {
             let all = match listing::render(path, plain, use_color && !plain) {
                 Ok(rows) => rows,
                 Err(e) => {
@@ -352,16 +309,10 @@ pub(crate) fn run(
             continue;
         }
         let (lines, path_for_detection, header_label) = match input {
-            EatInput::File(path) => match read_file(path) {
+            SourceSpec::Dir(_) => unreachable!("listed above"),
+            SourceSpec::File(path) => match read_file(path) {
                 Ok(lines) => {
-                    let label = if file_count > 1
-                        || inputs.len() > 1
-                        || inputs.iter().any(|i| matches!(i, EatInput::Stdin))
-                    {
-                        Some(path.display().to_string())
-                    } else {
-                        None
-                    };
+                    let label = (inputs.len() > 1).then(|| path.display().to_string());
                     (lines, Some(path.as_path()), label)
                 }
                 Err(e) => {
@@ -370,7 +321,7 @@ pub(crate) fn run(
                     continue;
                 }
             },
-            EatInput::Stdin => match read_stdin() {
+            SourceSpec::Stdin => match read_stdin() {
                 Ok(lines) => (lines, None, None),
                 Err(e) => {
                     eprintln!("{}: stdin: {e}", prog_name());
@@ -378,7 +329,7 @@ pub(crate) fn run(
                     continue;
                 }
             },
-            EatInput::Command(argv) => match exec::run(argv) {
+            SourceSpec::Command(argv) => match exec::run(argv) {
                 Ok(out) => {
                     if !out.status.success() {
                         let _ = io::stderr().write_all(&out.stderr);
@@ -480,12 +431,6 @@ pub(crate) fn run(
     } else {
         ExitCode::from(0)
     }
-}
-
-enum EatInput {
-    File(PathBuf),
-    Stdin,
-    Command(Vec<String>),
 }
 
 #[cfg(test)]

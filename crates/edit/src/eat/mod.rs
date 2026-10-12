@@ -21,84 +21,35 @@ pub mod detect;
 pub mod exec;
 pub mod gutter_view;
 pub mod listing;
+pub mod route;
 pub mod stream;
 pub mod theme;
 pub mod viewer;
 pub mod views;
 
-use std::io::{self, IsTerminal};
-use std::path::PathBuf;
 use std::process::ExitCode;
-
 use std::time::Duration;
 
 use cli::{Cli, LineRange, parse_cli, parse_line_range, prog_name, resolve_use_color};
 use detect::{resolve_language, resolve_language_with};
-use stream::run;
+use route::{Env, Plan, SourceSpec};
 
-/// `-x -- CMD ARGS...`: the positionals are the command. A tty gets the
-/// snapshot viewer over its stdout, with `r` running it again; anything
-/// else streams it like a file. `-l` names the language; without it the
-/// output is sniffed, since there is no path to go by.
-fn run_exec_cli(cli: &Cli, line_range: Option<LineRange>) -> ExitCode {
-    if cli.files.is_empty() {
-        eprintln!("{}: -x needs a command: {} -x -- CMD [ARGS...]", prog_name(), prog_name());
-        return ExitCode::from(2);
-    }
-    let use_viewer = io::stdout().is_terminal() && !cli.plain && line_range.is_none();
-    if cli.watch.is_some()
-        && !use_viewer
-        && let Some(code) = watch_usage_error(cli, line_range.is_some())
-    {
-        return code;
-    }
-    if use_viewer {
-        let lang = match cli.language.as_deref() {
+fn run_viewer(source: SourceSpec, watch: Option<Duration>, cli: &Cli) -> ExitCode {
+    let (source, lang) = match source {
+        SourceSpec::File(path) => match resolve_language(&path, cli.language.as_deref()) {
+            Ok(lang) => (views::Source::File(path), Some(lang)),
+            Err(name) => return unknown_language(&name),
+        },
+        // `-l` or nothing: the output is sniffed once it is there.
+        SourceSpec::Command(argv) => match cli.language.as_deref() {
             Some(name) => match resolve_language_with(None, Some(name), Vec::new) {
-                Ok(lang) => Some(lang),
-                Err(name) => {
-                    eprintln!("{}: unknown language '{name}'", prog_name());
-                    return ExitCode::from(2);
-                }
+                Ok(lang) => (views::Source::Command(argv), Some(lang)),
+                Err(name) => return unknown_language(&name),
             },
-            None => None,
-        };
-        return run_snapshot(views::Source::Command(cli.files.clone()), lang, cli);
-    }
-    run(
-        &cli.files,
-        true,
-        cli.language.as_deref(),
-        cli.plain,
-        cli.number,
-        line_range,
-        cli.color,
-        cli.paging,
-        cli.wrap,
-    )
-}
-
-/// `-w` wants the viewer, so what keeps the viewer off is a usage error:
-/// `--plain`, `--line-range`, no tty. `None` when none of those apply.
-fn watch_usage_error(cli: &Cli, has_line_range: bool) -> Option<ExitCode> {
-    let why = if cli.plain {
-        "cannot be combined with --plain"
-    } else if has_line_range {
-        "cannot be combined with --line-range"
-    } else if !io::stdout().is_terminal() {
-        "needs a tty"
-    } else {
-        return None;
+            None => (views::Source::Command(argv), None),
+        },
+        SourceSpec::Dir(_) | SourceSpec::Stdin => unreachable!("route keeps these off the viewer"),
     };
-    eprintln!("{}: -w {why}", prog_name());
-    Some(ExitCode::from(2))
-}
-
-fn run_snapshot(
-    source: views::Source,
-    lang: Option<&'static lsh::runtime::Language>,
-    cli: &Cli,
-) -> ExitCode {
     let use_color = resolve_use_color(cli.color, true);
     // A command is a spawn per poll, not a stat: fifty of these at 50ms
     // would be a core. The floor is a quarter second, said in the header.
@@ -106,7 +57,7 @@ fn run_snapshot(
         views::Source::Command(_) => Duration::from_millis(250),
         views::Source::File(_) => Duration::ZERO,
     };
-    let watch: Option<Duration> = cli.watch.map(|w| w.0.max(floor));
+    let watch = watch.map(|w| w.max(floor));
     match views::run_snapshot(source, lang, cli.number, use_color, cli.wrap.resolve(), watch) {
         Ok(()) => ExitCode::from(0),
         Err(e) => {
@@ -114,6 +65,11 @@ fn run_snapshot(
             ExitCode::from(1)
         }
     }
+}
+
+fn unknown_language(name: &str) -> ExitCode {
+    eprintln!("{}: unknown language '{name}'", prog_name());
+    ExitCode::from(2)
 }
 
 /// main entry point for eat. called from edit's argv0 dispatch -- either via a
@@ -132,69 +88,35 @@ pub fn main() -> ExitCode {
         return ExitCode::from(0);
     }
 
-    let line_range = if let Some(ref s) = cli.line_range {
-        match parse_line_range(s) {
-            Ok(r) => Some(r),
-            Err(e) => {
-                eprintln!("{}: invalid --line-range: {e}", prog_name());
-                return ExitCode::from(2);
-            }
-        }
-    } else {
-        None
-    };
-
-    if cli.exec {
-        return run_exec_cli(&cli, line_range);
-    }
-
-    // single file, tty, not plain, no line-range -> snapshot TUI pager
-    let use_snapshot_tui = io::stdout().is_terminal()
-        && !cli.plain
-        && line_range.is_none()
-        && cli.files.len() == 1
-        && cli.files[0] != "-"
-        && !std::path::Path::new(&cli.files[0]).is_dir();
-
-    if cli.watch.is_some() && !use_snapshot_tui {
-        let shape = match cli.files.len() {
-            0 => Some("needs a file"),
-            1 if cli.files[0] == "-" => Some("cannot watch stdin"),
-            1 if std::path::Path::new(&cli.files[0]).is_dir() => Some("cannot watch a directory"),
-            1 => None,
-            _ => Some("takes a single file"),
-        };
-        if let Some(why) = shape {
-            eprintln!("{}: -w {why}", prog_name());
+    let line_range: Option<LineRange> = match cli.line_range.as_deref().map(parse_line_range) {
+        Some(Ok(r)) => Some(r),
+        Some(Err(e)) => {
+            eprintln!("{}: invalid --line-range: {e}", prog_name());
             return ExitCode::from(2);
         }
-        if let Some(code) = watch_usage_error(&cli, line_range.is_some()) {
-            return code;
+        None => None,
+    };
+
+    let plan = match route::route(&cli, &Env::detect()) {
+        Ok(plan) => plan,
+        Err(usage) => {
+            let prog = prog_name();
+            eprintln!("{prog}: {}", usage.message(&prog));
+            return ExitCode::from(2);
         }
-        unreachable!("a single watchable file on a tty takes the viewer");
+    };
+
+    // An unknown `-l` is refused whatever the plan; the viewer resolves it
+    // again on the way in.
+    if let Some(name) = cli.language.as_deref()
+        && lsh_defs::detect::find_language(name).is_none()
+    {
+        return unknown_language(name);
     }
 
-    if use_snapshot_tui {
-        let path = PathBuf::from(&cli.files[0]);
-        let lang = match resolve_language(&path, cli.language.as_deref()) {
-            Ok(lang) => lang,
-            Err(name) => {
-                eprintln!("{}: unknown language '{name}'", prog_name());
-                return ExitCode::from(2);
-            }
-        };
-        return run_snapshot(views::Source::File(path), Some(lang), &cli);
+    match plan {
+        Plan::Help => cli::print_short_help(),
+        Plan::Viewer { source, watch } => run_viewer(source, watch, &cli),
+        Plan::Stream { sources } => stream::run(&sources, &cli, line_range),
     }
-
-    run(
-        &cli.files,
-        false,
-        cli.language.as_deref(),
-        cli.plain,
-        cli.number,
-        line_range,
-        cli.color,
-        cli.paging,
-        cli.wrap,
-    )
 }
