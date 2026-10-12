@@ -49,13 +49,16 @@ fn run_viewer(spec: SourceSpec, watch: Option<Duration>, cli: &Cli) -> ExitCode 
             },
             None => None,
         },
-        SourceSpec::Dir(_) | SourceSpec::Stdin => unreachable!("route keeps these off the viewer"),
+        // A listing paints its own colours; no language gets a say.
+        SourceSpec::Dir(_) => Some(lsh_defs::PLAIN),
+        SourceSpec::Stdin => unreachable!("route keeps stdin off the viewer"),
     };
-    // A command is a spawn per poll, not a stat: fifty of these at 50ms
-    // would be a core. The floor is a quarter second, said in the header.
+    // A command is a spawn per poll, not a stat, and so is a listing (its
+    // git column): fifty of these at 50ms would be a core. The floor is a
+    // quarter second, said in the header.
     let floor = match &spec {
-        SourceSpec::Command(_) => Duration::from_millis(250),
-        _ => Duration::ZERO,
+        SourceSpec::Command(_) | SourceSpec::Dir(_) => Duration::from_millis(250),
+        SourceSpec::File(_) | SourceSpec::Stdin => Duration::ZERO,
     };
     let watch = watch.map(|w| w.max(floor));
     let source = source::Source::new(spec, false);

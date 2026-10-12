@@ -247,13 +247,17 @@ fn apply(
     let read = match snapshot.content {
         Content::Reader { mut reader, size_hint } => b.read_from(&mut *reader, size_hint),
         Content::Bytes(bytes) => b.read_from(&mut &bytes[..], Some(bytes.len())),
+        // The rows bring their own colours; the load clears the previous
+        // set, so they go on after it.
         Content::Rows(rows) => {
             let mut text = String::new();
             for row in &rows {
                 text.push_str(&row.text);
                 text.push('\n');
             }
-            b.read_from(&mut text.as_bytes(), Some(text.len()))
+            let read = b.read_from(&mut text.as_bytes(), Some(text.len()));
+            b.set_pinned_highlights(Some(rows.iter().map(|r| r.pinned()).collect()));
+            read
         }
     };
     let marker = match read {

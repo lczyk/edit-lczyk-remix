@@ -45,14 +45,16 @@ enum Kind {
     Dir {
         path: PathBuf,
         plain: bool,
+        /// The previous listing, so the same rows again are `Unchanged`.
+        last: Option<Vec<Row>>,
     },
 }
 
 /// What a load produced.
 pub(crate) enum Load {
     New(Snapshot),
-    /// Nothing to show again: the same bytes as last time, or a command
-    /// that failed without producing anything.
+    /// Nothing to show again: the same bytes or rows as last time, or a
+    /// command that failed without producing anything.
     Unchanged(Option<Failure>),
 }
 
@@ -120,7 +122,7 @@ impl Source {
             SourceSpec::File(path) => Kind::File { path, stat: None },
             SourceSpec::Stdin => Kind::Stdin,
             SourceSpec::Command(argv) => Kind::Command { argv, last: None, run: None },
-            SourceSpec::Dir(path) => Kind::Dir { path, plain },
+            SourceSpec::Dir(path) => Kind::Dir { path, plain, last: None },
         };
         Source { kind, ready: None }
     }
@@ -239,8 +241,13 @@ impl Source {
             Kind::Stdin => {
                 Content::Reader { reader: Box::new(io::stdin().lock()), size_hint: None }
             }
-            Kind::Dir { path, plain } => {
-                Content::Rows(listing::render(path, *plain).map_err(|e| e.to_string())?)
+            Kind::Dir { path, plain, last } => {
+                let rows = listing::render(path, *plain).map_err(|e| e.to_string())?;
+                if last.as_ref() == Some(&rows) {
+                    return Ok(Load::Unchanged(None));
+                }
+                *last = Some(rows.clone());
+                Content::Rows(rows)
             }
             Kind::Command { .. } => unreachable!("a command is loaded through its run"),
         };
@@ -392,14 +399,20 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_is_rows() {
+    fn a_directory_is_rows_and_the_same_listing_again_is_unchanged() {
         let dir = std::env::temp_dir().join(format!("eat-source-dir-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("a.rs"), "").unwrap();
         let mut source = Source::new(SourceSpec::Dir(dir.clone()), true);
+        assert_eq!(source.probe(), Probe::Unknown, "a listing has to be made to compare");
         let Ok(Load::New(snap)) = source.load() else { panic!("a readable dir loads") };
         assert_eq!(snap.content.lines().unwrap(), ["sub/", "a.rs"]);
+        assert!(matches!(source.load(), Ok(Load::Unchanged(None))));
+        std::fs::write(dir.join("b.rs"), "").unwrap();
+        let Ok(Load::New(snap)) = source.load() else { panic!("a new entry is a new listing") };
+        assert_eq!(snap.content.lines().unwrap(), ["sub/", "a.rs", "b.rs"]);
         std::fs::remove_dir_all(&dir).unwrap();
+        assert!(source.load().is_err());
     }
 }

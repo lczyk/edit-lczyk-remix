@@ -5,8 +5,10 @@
 #     docker run --rm -v "$PWD":/workspace ghcr.io/fizzbee-io/fizzbee:latest eat-cli.fizz
 #
 # This is a model of the rules, not of the code: `dispatch` transcribes
-# eat::main, so a change to the matrix wants reasoning here first, and the
-# bounded test in crates/edit/src/eat/cli.rs then checks the real parser.
+# eat::route::route, so a change to the matrix wants reasoning here first;
+# the bounded test in crates/edit/src/eat/cli.rs then checks the real
+# parser and the table test in crates/edit/src/eat/route.rs the real
+# routing.
 #
 # Tokens arrive one at a time from a small alphabet, each run through the
 # rewrite rules and the argh rules as it lands. `End` closes the argv and
@@ -36,14 +38,15 @@
 #      argv; it never streams.
 # D3:  THE SYSTEM SHALL take the viewer only on a tty.
 # D4:  WHILE exec mode is not set, THE SYSTEM SHALL take the viewer only for a
-#      single positional that is neither `-` nor a directory.
+#      single positional that is not `-`; for a directory, only while watch
+#      is set.
 
 ALPHABET = ['-w', '2s', '-x', '-n', '--', '-', 'FILE', 'DIR', '-q']
 MAX_TOKENS = 4
 DEFAULT_MS = 1000
 
 Mode = enum('OPTS', 'POS')
-Outcome = enum('NONE', 'VIEWER_FILE', 'VIEWER_CMD', 'STREAM', 'HELP', 'USAGE', 'REJECTED')
+Outcome = enum('NONE', 'VIEWER_FILE', 'VIEWER_DIR', 'VIEWER_CMD', 'STREAM', 'HELP', 'USAGE', 'REJECTED')
 
 action Init:
     tty = oneof [False, True]
@@ -108,7 +111,7 @@ atomic action Finished:
     require done
     pass
 
-# eat::main, as the matrix describes it.
+# eat::route::route, as the matrix describes it.
 atomic func dispatch():
     if cmd_mode:
         if len(files) == 0:
@@ -120,9 +123,12 @@ atomic func dispatch():
         else:
             outcome = Outcome.STREAM
         return
-    one_file = len(files) == 1 and files[0] != '-' and files[0] != 'DIR'
-    if tty and one_file:
+    one = len(files) == 1 and files[0] != '-'
+    one_dir = one and files[0] == 'DIR'
+    if tty and one and not one_dir:
         outcome = Outcome.VIEWER_FILE
+    elif tty and one_dir and watch != None:
+        outcome = Outcome.VIEWER_DIR             # D4
     elif watch != None:
         outcome = Outcome.USAGE                # D2
     elif tty and len(files) == 0:
@@ -160,15 +166,18 @@ always assertion WatchNeverStreams:   # D2
     return not done or watch == None or outcome != Outcome.STREAM
 
 always assertion ViewerNeedsATty:   # D3
-    return not (outcome == Outcome.VIEWER_FILE or outcome == Outcome.VIEWER_CMD) or tty
+    viewer = outcome == Outcome.VIEWER_FILE or outcome == Outcome.VIEWER_DIR or outcome == Outcome.VIEWER_CMD
+    return not viewer or tty
 
 always assertion ExecNeverOpensAPath:   # D1
     return not done or not cmd_mode or outcome == Outcome.USAGE or outcome == Outcome.REJECTED or len(files) > 0
 
-always assertion StdinAndDirsNeverGetTheViewer:   # D4
-    if outcome != Outcome.VIEWER_FILE:
-        return True
-    return len(files) == 1 and files[0] != '-' and files[0] != 'DIR'
+always assertion StdinNeverGetsTheViewerAndADirOnlyLive:   # D4
+    if outcome == Outcome.VIEWER_FILE:
+        return len(files) == 1 and files[0] != '-' and files[0] != 'DIR'
+    if outcome == Outcome.VIEWER_DIR:
+        return files == ['DIR'] and watch != None
+    return True
 
 always assertion EveryRunEnds:
     return not done or outcome != Outcome.NONE
@@ -179,6 +188,8 @@ exists assertion ReachesViewerFile:
     return outcome == Outcome.VIEWER_FILE
 exists assertion ReachesViewerCmd:
     return outcome == Outcome.VIEWER_CMD
+exists assertion ReachesViewerDir:
+    return outcome == Outcome.VIEWER_DIR
 exists assertion ReachesStream:
     return outcome == Outcome.STREAM
 exists assertion ReachesHelp:

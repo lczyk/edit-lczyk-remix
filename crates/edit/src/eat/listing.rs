@@ -23,6 +23,8 @@ use lsh::runtime::Ansi16;
 use lsh_defs::detect::process_file_associations;
 use lsh_defs::{FILE_ASSOCIATIONS, PLAIN};
 
+use crate::buffer::{PinnedSpan, indexed_color};
+use crate::framebuffer::Attributes;
 use crate::hash::hash_str;
 
 /// One listing row: the text and the spans that colour parts of it, in
@@ -86,6 +88,19 @@ impl Row {
         {
             self.spans.push(Span { range: start..self.text.len(), style });
         }
+    }
+
+    /// The row's spans for a `TextBuffer` to paint. Dim has no framebuffer
+    /// attribute, so a dim span paints plain.
+    pub(crate) fn pinned(&self) -> Vec<PinnedSpan> {
+        self.spans
+            .iter()
+            .map(|s| PinnedSpan {
+                range: s.range.clone(),
+                color: s.style.color.map(indexed_color),
+                attr: if s.style.bold { Attributes::Bold } else { Attributes::None },
+            })
+            .collect()
     }
 
     /// The row as ansi text: each span wrapped in its sgr and a reset.
@@ -472,6 +487,13 @@ mod tests {
         // A default style is no span at all.
         row.push("x", Some(Style::default()));
         assert_eq!(row.spans.len(), 2);
+        // Pinned, the dim placeholder paints plain and the dir keeps bold blue.
+        let pinned = row.pinned();
+        assert_eq!(pinned[0].color, None);
+        assert_eq!(pinned[0].attr, Attributes::None);
+        assert_eq!(pinned[1].range, 5..9);
+        assert_eq!(pinned[1].color, Some(crate::framebuffer::IndexedColor::Blue));
+        assert_eq!(pinned[1].attr, Attributes::Bold);
     }
 
     fn texts(dir: &Path, plain: bool) -> Vec<String> {

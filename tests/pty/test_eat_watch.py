@@ -2,8 +2,8 @@
 
 The viewer polls the source and loads it again when it changed, as if
 `r` had been pressed: the viewport stays, the marker says what the last
-load had to say. It needs a tty and one file or a command, and refuses
-everything else with exit 2 rather than half-working.
+load had to say. It needs a tty and one file, one directory or a command,
+and refuses everything else with exit 2 rather than half-working.
 """
 
 import os
@@ -70,6 +70,37 @@ def a_changed_command_output_is_loaded_without_a_keypress():
 
 
 @test
+def a_changed_directory_is_listed_without_a_keypress():
+    with tempfile.TemporaryDirectory() as d:
+        os.mkdir(os.path.join(d, "sub"))
+        _write(os.path.join(d, "main.rs"), ["fn main() {}"])
+        # 120 columns: the temp dir's path comes before `live` in the header.
+        with Edit(["--eat", "--color", "never", "-w", "300ms", d], cols=120, rows=8) as ed:
+            expect(_settles_on(ed, b"live 300ms"), "the header does not say it is live")
+            expect(b"sub/" in ed.plain and b"main.rs" in ed.plain,
+                   f"the listing is not on screen: {ed.plain[:200]!r}")
+            _write(os.path.join(d, "later.txt"), ["x"])
+            expect(_settles_on(ed, b"later.txt"), "the new entry was not picked up")
+            os.remove(os.path.join(d, "main.rs"))
+            for _ in range(10):
+                pause(0.2)
+                ed.drain()
+                if b"main.rs" not in ed.screen():
+                    break
+            expect(b"main.rs" not in ed.screen(), "the removed entry is still listed")
+            ed.send(b"q")
+
+
+@test
+def a_directory_without_watch_still_pages():
+    with tempfile.TemporaryDirectory() as d:
+        _write(os.path.join(d, "a.txt"), ["x"])
+        with Edit(["--eat", d], env={"PAGER": "cat"}) as ed:
+            expect(b"a.txt" in ed.plain, f"expected the listing, got: {ed.plain!r}")
+            expect(b"r reload" not in ed.plain, "a static directory took the viewer")
+
+
+@test
 def a_vanished_file_keeps_the_screen_and_says_so():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "doc.txt")
@@ -95,7 +126,7 @@ def watch_refuses_what_the_viewer_cannot_show():
             (["--eat", "-w"], b"needs a file"),
             (["--eat", "-w", "-"], b"cannot watch stdin"),
             (["--eat", "-w", path, path], b"takes a single file"),
-            (["--eat", "-w", d], b"cannot watch a directory"),
+            (["--eat", "-w", "-p", d], b"--plain"),
             (["--eat", "-w", "--plain", path], b"--plain"),
         ]
         for argv, why in cases:

@@ -86,14 +86,23 @@ pub(crate) fn route(cli: &Cli, env: &Env) -> Result<Plan, Usage> {
         cli.files.iter().map(|f| spec_of(f, env)).collect()
     };
 
-    if viewer_ok && let [source @ SourceSpec::File(_)] = sources.as_slice() {
-        return Ok(Plan::Viewer { source: source.clone(), watch });
+    // One file takes the viewer; one directory only live, since a static
+    // listing is `ls`-shaped and wants the scrollback, not the alt screen.
+    if viewer_ok {
+        match sources.as_slice() {
+            [source @ SourceSpec::File(_)] => {
+                return Ok(Plan::Viewer { source: source.clone(), watch });
+            }
+            [source @ SourceSpec::Dir(_)] if watch.is_some() => {
+                return Ok(Plan::Viewer { source: source.clone(), watch });
+            }
+            _ => {}
+        }
     }
     if watch.is_some() {
         let why = match (cli.files.len(), sources.as_slice()) {
             (0, _) => "needs a file",
             (1, [SourceSpec::Stdin]) => "cannot watch stdin",
-            (1, [SourceSpec::Dir(_)]) => "cannot watch a directory",
             (1, _) => viewer_blocker(cli, env),
             _ => "takes a single file",
         };
@@ -166,7 +175,8 @@ mod tests {
         let cmd = SourceSpec::Command(vec!["ls".into()]);
         let dir = SourceSpec::Dir(PathBuf::from("DIR"));
         let cases: Vec<Case> = vec![
-            // a tty: one file takes the viewer, anything else streams
+            // a tty: one file takes the viewer, anything else streams; a
+            // directory only live
             (&[], &["a.txt"], TTY, TTY, viewer(file("a.txt"), None)),
             (&[], &["a.txt", "b.txt"], TTY, TTY, stream(vec![file("a.txt"), file("b.txt")])),
             (&[], &["-"], TTY, PIPE, stream(vec![SourceSpec::Stdin])),
@@ -196,7 +206,16 @@ mod tests {
             (&["-w", "2s"], &[], TTY, TTY, Err(Usage::Watch("needs a file"))),
             (&["-w", "2s"], &[], TTY, PIPE, Err(Usage::Watch("needs a file"))),
             (&["-w", "2s"], &["-"], TTY, PIPE, Err(Usage::Watch("cannot watch stdin"))),
-            (&["-w", "2s"], &["DIR"], TTY, TTY, Err(Usage::Watch("cannot watch a directory"))),
+            (&["-w", "2s"], &["DIR"], TTY, TTY, viewer(dir.clone(), Some(2000))),
+            (&["-w", "2s"], &["DIR"], PIPE, TTY, Err(Usage::Watch("needs a tty"))),
+            (
+                &["-w", "2s", "-p"],
+                &["DIR"],
+                TTY,
+                TTY,
+                Err(Usage::Watch("cannot be combined with --plain")),
+            ),
+            (&["-w", "2s"], &["DIR", "a.txt"], TTY, TTY, Err(Usage::Watch("takes a single file"))),
             (&["-w", "2s"], &["a.txt", "b"], TTY, TTY, Err(Usage::Watch("takes a single file"))),
             (
                 &["-w", "2s", "-p"],
@@ -233,8 +252,6 @@ mod tests {
     fn the_watch_shape_outranks_the_viewer_blockers() {
         let got = route(&cli(&["-w", "1s", "-p"], &["a", "b"]), &env(TTY, TTY));
         assert_eq!(got, Err(Usage::Watch("takes a single file")));
-        let got = route(&cli(&["-w", "1s", "-p"], &["DIR"]), &env(PIPE, TTY));
-        assert_eq!(got, Err(Usage::Watch("cannot watch a directory")));
         let got = route(&cli(&["-w", "1s", "-p", "--line-range", "1"], &["a"]), &env(PIPE, TTY));
         assert_eq!(got, Err(Usage::Watch("cannot be combined with --plain")));
     }
