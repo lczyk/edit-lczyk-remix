@@ -53,6 +53,7 @@ impl TextBuffer {
         // TODO: Since reading the file can fail, we should ensure that we also reset the cursor here.
         // I don't do it, so that `recalc_after_content_swap()` works.
         self.buffer.clear();
+        self.pinned_highlights = None;
         self.read_as_utf8(reader, size_hint)?;
 
         // Figure out

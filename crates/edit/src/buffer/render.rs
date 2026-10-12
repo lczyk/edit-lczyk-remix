@@ -10,6 +10,38 @@
 
 use super::*;
 
+/// One coloured span of a logical line, in absolute byte offsets, from
+/// whichever of the highlighter and the pinned spans is in charge.
+struct MarkupSpan {
+    start: usize,
+    end: usize,
+    color: Option<IndexedColor>,
+    attr: Option<Attributes>,
+}
+
+/// The highlighter's spans of one line as markup, `Other` dropped.
+fn lsh_markup(spans: &[Highlight<HighlightKind>], out: &mut Vec<MarkupSpan>) {
+    for pair in spans.windows(2) {
+        let (curr, next) = (&pair[0], &pair[1]);
+        if curr.kind == HighlightKind::Other {
+            continue;
+        }
+        let attr = match curr.kind {
+            HighlightKind::MarkupBold => Some(Attributes::Bold),
+            HighlightKind::MarkupItalic => Some(Attributes::Italic),
+            HighlightKind::MarkupLink => Some(Attributes::Underlined),
+            HighlightKind::MarkupStrikethrough => Some(Attributes::Strikethrough),
+            _ => None,
+        };
+        out.push(MarkupSpan {
+            start: curr.start,
+            end: next.start,
+            color: highlight_kind_color(curr.kind),
+            attr,
+        });
+    }
+}
+
 /// How far out a row's width is measured for the horizontal scroll bound
 /// (see [`TextareaLayout::visual_pos_x_max`]). One line can be the whole
 /// file, so the walk stops here and the width is reported as unknown.
@@ -251,13 +283,13 @@ impl TextBuffer {
         out
     }
 
-    /// Build per-row lsh markup rects: foreground colours + attribute
-    /// blits (bold / italic / underline / strikethrough), each clipped
-    /// to the visual row's actual text extent. Intersects every
-    /// highlight span with `[cursor_beg.offset, cursor_end.offset)` and
-    /// emits one rect per intersecting span -- so wrapped continuation
-    /// rows never paint past their wrap column (the bug the old
-    /// `render_apply_highlights` path had with `COORD_TYPE_SAFE_MAX`).
+    /// Build per-row markup rects: foreground colours + attribute blits
+    /// (bold / italic / underline / strikethrough), each clipped to the
+    /// visual row's actual text extent. Intersects every span with
+    /// `[cursor_beg.offset, cursor_end.offset)` and emits one rect per
+    /// intersecting span -- so wrapped continuation rows never paint past
+    /// their wrap column (the bug the old `render_apply_highlights` path
+    /// had with `COORD_TYPE_SAFE_MAX`).
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::type_complexity)]
     fn build_markup_row(
@@ -265,7 +297,7 @@ impl TextBuffer {
         cursor_beg: &Cursor,
         cursor_end: &Cursor,
         visual_line: CoordType,
-        highlights: &[Highlight<HighlightKind>],
+        spans: &[MarkupSpan],
         destination: Rect,
         origin: Point,
         y: CoordType,
@@ -283,20 +315,13 @@ impl TextBuffer {
         let text_right = destination.right;
         let top = destination.top + y;
 
-        for pair in highlights.windows(2) {
-            let curr = &pair[0];
-            let next = &pair[1];
-            if curr.kind == HighlightKind::Other {
-                continue;
-            }
-            let hl_beg = curr.start;
-            let hl_end = next.start;
+        for span in spans {
             // Drop spans entirely outside this row's visible byte range.
-            if hl_end <= line_beg || hl_beg >= line_end {
+            if span.end <= line_beg || span.start >= line_end {
                 continue;
             }
-            let clip_beg = hl_beg.max(line_beg);
-            let clip_end = hl_end.min(line_end);
+            let clip_beg = span.start.max(line_beg);
+            let clip_end = span.end.min(line_end);
             if clip_beg >= clip_end {
                 continue;
             }
@@ -316,22 +341,34 @@ impl TextBuffer {
             }
             let rect = Rect { left: screen_left, top, right: screen_right, bottom: top + 1 };
 
-            if let Some(color) = highlight_kind_color(curr.kind) {
+            if let Some(color) = span.color {
                 fg_rects.push((rect, color));
             }
-            let attr = match curr.kind {
-                HighlightKind::MarkupBold => Some(Attributes::Bold),
-                HighlightKind::MarkupItalic => Some(Attributes::Italic),
-                HighlightKind::MarkupLink => Some(Attributes::Underlined),
-                HighlightKind::MarkupStrikethrough => Some(Attributes::Strikethrough),
-                _ => None,
-            };
-            if let Some(attr) = attr {
+            if let Some(attr) = span.attr {
                 attr_rects.push((rect, attr));
             }
         }
 
         (fg_rects, attr_rects)
+    }
+
+    /// The pinned spans of logical line `logical_y` as absolute byte
+    /// spans. `cursor` is any cursor on that line.
+    fn pinned_markup(
+        &self,
+        pinned: &[Vec<PinnedSpan>],
+        cursor: &Cursor,
+        logical_y: CoordType,
+        out: &mut Vec<MarkupSpan>,
+    ) {
+        let Some(spans) = pinned.get(logical_y as usize) else { return };
+        let line_start = self.goto_line_start(*cursor, logical_y).offset;
+        out.extend(spans.iter().map(|s| MarkupSpan {
+            start: line_start + s.range.start,
+            end: line_start + s.range.end,
+            color: s.color,
+            attr: (s.attr != Attributes::None).then_some(s.attr),
+        }));
     }
 
     /// Encodes the body text for a single visual row into `line`:
@@ -568,7 +605,7 @@ impl TextBuffer {
         let lsh_enabled = !crate::glyphs::no_color();
         let mut highlighter = Highlighter::new(&self.buffer, self.language);
         let mut hl_logical_y: Option<CoordType> = None;
-        let mut hl_buf: Vec<Highlight<HighlightKind>> = Vec::new();
+        let mut hl_buf: Vec<MarkupSpan> = Vec::new();
         let mut hl_conflict = false;
 
         for y in 0..height {
@@ -616,12 +653,23 @@ impl TextBuffer {
             // stops advancing there. Wrapped continuation rows share it.
             let logical_y = cursor_beg.logical_pos.y;
             if hl_logical_y != Some(logical_y) {
-                let scratch_hl = scratch_arena(None);
-                let parsed =
-                    self.highlighter_cache.parse_line(&scratch_hl, &mut highlighter, logical_y);
                 hl_buf.clear();
-                hl_buf.extend(parsed.spans.iter().cloned());
-                hl_conflict = parsed.conflict != ConflictTag::None;
+                hl_conflict = match &self.pinned_highlights {
+                    Some(pinned) => {
+                        self.pinned_markup(pinned, &cursor_beg, logical_y, &mut hl_buf);
+                        false
+                    }
+                    None => {
+                        let scratch_hl = scratch_arena(None);
+                        let parsed = self.highlighter_cache.parse_line(
+                            &scratch_hl,
+                            &mut highlighter,
+                            logical_y,
+                        );
+                        lsh_markup(&parsed.spans, &mut hl_buf);
+                        parsed.conflict != ConflictTag::None
+                    }
+                };
                 hl_logical_y = Some(logical_y);
             }
 
@@ -796,6 +844,20 @@ impl TextBuffer {
         }
         let line_count = self.logical_line_count() as usize;
         let mut out = vec![None; line_count];
+        if let Some(pinned) = &self.pinned_highlights {
+            for (slot, spans) in out.iter_mut().zip(pinned) {
+                let mut tally: Vec<(IndexedColor, usize)> = Vec::new();
+                for s in spans {
+                    let Some(color) = s.color else { continue };
+                    match tally.iter_mut().find(|(c, _)| *c == color) {
+                        Some(t) => t.1 += s.range.len(),
+                        None => tally.push((color, s.range.len())),
+                    }
+                }
+                *slot = tally.into_iter().max_by_key(|(_, len)| *len).map(|(c, _)| c);
+            }
+            return out;
+        }
         let mut highlighter = Highlighter::new(&self.buffer, self.language);
         for slot in out.iter_mut() {
             let scratch = scratch_arena(None);

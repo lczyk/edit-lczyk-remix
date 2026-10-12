@@ -106,6 +106,16 @@ pub enum IoError {
 // compat with existing `edit::buffer::GutterMark` consumers.
 pub use gutter::GutterMark;
 
+/// A span of one logical line coloured by whoever produced the content
+/// rather than by the highlighter: `range` is in bytes from the start of
+/// the line. See [`TextBuffer::set_pinned_highlights`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinnedSpan {
+    pub range: Range<usize>,
+    pub color: Option<IndexedColor>,
+    pub attr: Attributes,
+}
+
 /// One row of the minimap rail. `width` glyphs starting at `glyphs[0]` are
 /// valid; the rest are unused. Computed externally and stuffed in via
 /// [`TextBuffer::set_minimap_cells`]. Each cell summarises
@@ -395,6 +405,8 @@ pub struct TextBuffer {
     selection_generation: u32,
     search: Option<UnsafeCell<ActiveSearch>>,
     highlighter_cache: HighlighterCache,
+    /// Per logical line, when the content came with its own colours.
+    pinned_highlights: Option<Vec<Vec<PinnedSpan>>>,
 
     width: CoordType,
     margin_width: CoordType,
@@ -486,6 +498,7 @@ impl TextBuffer {
             selection_generation: 0,
             search: None,
             highlighter_cache: HighlighterCache::new(),
+            pinned_highlights: None,
 
             width: 0,
             margin_width: 0,
@@ -983,6 +996,14 @@ impl TextBuffer {
 
     pub fn language(&self) -> &'static Language {
         self.language
+    }
+
+    /// Colour the content from these spans, one `Vec` per logical line,
+    /// instead of running the highlighter over it. For content whose
+    /// producer already knows the colours (a directory listing); the
+    /// language is ignored while they are set. A load clears them.
+    pub fn set_pinned_highlights(&mut self, spans: Option<Vec<Vec<PinnedSpan>>>) {
+        self.pinned_highlights = spans;
     }
 
     pub fn set_language(&mut self, language: &'static Language) {
@@ -3458,6 +3479,44 @@ mod tests {
         assert!(rows > 2, "width 12 wraps the second line");
         assert_eq!(l.gutter_marks.len(), rows, "{:?}", l.gutter_marks);
         assert!(l.gutter_marks.iter().all(|&(_, m)| m == GutterMark::Conflict));
+    }
+
+    #[test]
+    fn pinned_spans_colour_the_rows_and_a_load_clears_them() {
+        let mut tb = buf_with("   - src/\n1.2k main.rs\n");
+        tb.set_width(80);
+        let span = |range: Range<usize>, color, attr| PinnedSpan { range, color, attr };
+        tb.set_pinned_highlights(Some(vec![
+            vec![
+                span(0..4, None, Attributes::Bold),
+                span(5..9, Some(IndexedColor::Blue), Attributes::Bold),
+            ],
+            vec![span(5..12, Some(IndexedColor::Cyan), Attributes::None)],
+        ]));
+
+        let l = tb.layout(Point { x: 0, y: 0 }, rect(80, 4), None).unwrap();
+        let fg = |row: usize| -> Vec<(CoordType, CoordType, IndexedColor)> {
+            l.lines[row].markup_fg_rects.iter().map(|(r, c)| (r.left, r.right, *c)).collect()
+        };
+        assert_eq!(fg(0), [(5, 9, IndexedColor::Blue)]);
+        assert_eq!(fg(1), [(5, 12, IndexedColor::Cyan)]);
+        assert_eq!(fg(2), []);
+        let bold: Vec<_> = l.lines[0]
+            .markup_attr_rects
+            .iter()
+            .map(|(r, a)| (r.left, r.right, a.is(Attributes::Bold)))
+            .collect();
+        assert_eq!(bold, [(0, 4, true), (5, 9, true)]);
+        assert_eq!(
+            tb.dominant_color_per_line(),
+            [Some(IndexedColor::Blue), Some(IndexedColor::Cyan), None]
+        );
+
+        // A load clears them: the highlighter is back in charge.
+        tb.read_from(&mut &b"fn main() {}\n"[..], None).unwrap();
+        tb.set_language(lsh_defs::detect::find_language("rust").unwrap());
+        let l = tb.layout(Point { x: 0, y: 0 }, rect(80, 4), None).unwrap();
+        assert!(!l.lines[0].markup_fg_rects.is_empty(), "rust highlights `fn`");
     }
 
     #[test]
