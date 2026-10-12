@@ -35,30 +35,31 @@ use cli::{Cli, LineRange, parse_cli, parse_line_range, prog_name, resolve_use_co
 use detect::{resolve_language, resolve_language_with};
 use route::{Env, Plan, SourceSpec};
 
-fn run_viewer(source: SourceSpec, watch: Option<Duration>, cli: &Cli) -> ExitCode {
-    let (source, lang) = match source {
-        SourceSpec::File(path) => match resolve_language(&path, cli.language.as_deref()) {
-            Ok(lang) => (views::Source::File(path), Some(lang)),
+fn run_viewer(spec: SourceSpec, watch: Option<Duration>, cli: &Cli) -> ExitCode {
+    let lang = match &spec {
+        SourceSpec::File(path) => match resolve_language(path, cli.language.as_deref()) {
+            Ok(lang) => Some(lang),
             Err(name) => return unknown_language(&name),
         },
         // `-l` or nothing: the output is sniffed once it is there.
-        SourceSpec::Command(argv) => match cli.language.as_deref() {
+        SourceSpec::Command(_) => match cli.language.as_deref() {
             Some(name) => match resolve_language_with(None, Some(name), Vec::new) {
-                Ok(lang) => (views::Source::Command(argv), Some(lang)),
+                Ok(lang) => Some(lang),
                 Err(name) => return unknown_language(&name),
             },
-            None => (views::Source::Command(argv), None),
+            None => None,
         },
         SourceSpec::Dir(_) | SourceSpec::Stdin => unreachable!("route keeps these off the viewer"),
     };
-    let use_color = resolve_use_color(cli.color, true);
     // A command is a spawn per poll, not a stat: fifty of these at 50ms
     // would be a core. The floor is a quarter second, said in the header.
-    let floor = match source {
-        views::Source::Command(_) => Duration::from_millis(250),
-        views::Source::File(_) => Duration::ZERO,
+    let floor = match &spec {
+        SourceSpec::Command(_) => Duration::from_millis(250),
+        _ => Duration::ZERO,
     };
     let watch = watch.map(|w| w.max(floor));
+    let source = source::Source::new(spec, false);
+    let use_color = resolve_use_color(cli.color, true);
     match views::run_snapshot(source, lang, cli.number, use_color, cli.wrap.resolve(), watch) {
         Ok(()) => ExitCode::from(0),
         Err(e) => {

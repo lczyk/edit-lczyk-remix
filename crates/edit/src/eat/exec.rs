@@ -1,8 +1,9 @@
 //! `eat -x -- CMD ARGS...`: the source is a command's stdout rather than a
 //! file. The command runs to completion once per load, with stdin closed
 //! and stderr captured; what a failure means for the view is the caller's
-//! call. The viewer runs it in the background ([`start`] / [`Run`]) so a
-//! slow command never freezes the screen; the stream path waits ([`run`]).
+//! call. `source::Source` runs it in the background ([`start`] / [`Run`])
+//! for the viewer, so a slow command never freezes the screen, and waits
+//! for it ([`run`]) for the stream.
 
 use std::io::{self, Read as _};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -71,21 +72,6 @@ pub(crate) fn start(argv: &[String]) -> io::Result<Run> {
 }
 
 impl Run {
-    /// Give a quick command the chance to return before the first paint,
-    /// so `cat` never flashes `[running]`. A slow one is left to `poll`.
-    pub(crate) fn wait_up_to(&mut self, grace: std::time::Duration) -> io::Result<Option<Output>> {
-        let until = std::time::Instant::now() + grace;
-        loop {
-            if let Some(out) = self.poll()? {
-                return Ok(Some(out));
-            }
-            if std::time::Instant::now() >= until {
-                return Ok(None);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
-    }
-
     /// `Some` once the command has exited, with everything it wrote.
     pub(crate) fn poll(&mut self) -> io::Result<Option<Output>> {
         let Some(status) = self.child.try_wait()? else {
@@ -133,12 +119,12 @@ pub(crate) fn label(argv: &[String]) -> String {
 
 /// One line on a run that did not exit 0: the exit code (or the signal)
 /// and the last non-empty stderr line, if there was one.
-pub(crate) fn failure_note(out: &Output) -> String {
-    let how = match out.status.code() {
+pub(crate) fn failure_note_of(status: ExitStatus, stderr: &[u8]) -> String {
+    let how = match status.code() {
         Some(code) => format!("exit {code}"),
         None => "killed by signal".to_string(),
     };
-    let last = String::from_utf8_lossy(&out.stderr);
+    let last = String::from_utf8_lossy(stderr);
     match last.lines().rev().map(str::trim).find(|l| !l.is_empty()) {
         Some(line) => format!("{how}: {line}"),
         None => how,
@@ -166,13 +152,13 @@ mod tests {
         assert_eq!(out.stdout, b"out\n");
         assert_eq!(out.stderr, b"err\n");
         assert_eq!(out.status.code(), Some(3));
-        assert_eq!(failure_note(&out), "exit 3: err");
+        assert_eq!(failure_note_of(out.status, &out.stderr), "exit 3: err");
     }
 
     #[test]
     fn failure_note_without_stderr_is_just_the_code() {
         let out = run(&argv(&["sh", "-c", "exit 7"])).unwrap();
-        assert_eq!(failure_note(&out), "exit 7");
+        assert_eq!(failure_note_of(out.status, &out.stderr), "exit 7");
     }
 
     #[test]

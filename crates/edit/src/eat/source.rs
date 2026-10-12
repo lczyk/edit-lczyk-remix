@@ -1,6 +1,10 @@
 //! What eat reads, behind one surface: a file, stdin, a command's stdout
 //! or a directory listing. A [`Source`] is built from a [`SourceSpec`] and
-//! produces a [`Load`] on request ([`Source::load`]).
+//! produces a [`Load`] on request. The stream asks once and waits
+//! ([`Source::load`]); the viewer starts a load and polls for it
+//! ([`Source::start`] / [`Source::poll`]), so a slow command never holds
+//! up the screen, and asks [`Source::probe`] between loads whether there
+//! is anything new to fetch.
 //!
 //! Nothing here knows about a text buffer or a terminal: content comes
 //! back as a reader, as bytes or as listing rows, and the sink decides
@@ -9,6 +13,9 @@
 use std::io::{self, BufRead as _, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
+use std::time::Duration;
+
+use crate::watch::FileStat;
 
 use super::exec;
 use super::listing::{self, Row};
@@ -17,11 +24,15 @@ use super::route::SourceSpec;
 /// A source, with whatever state its kind keeps between loads.
 pub(crate) struct Source {
     kind: Kind,
+    /// A synchronous kind's load, parked between `start` and `poll`.
+    ready: Option<Result<Load, String>>,
 }
 
 enum Kind {
     File {
         path: PathBuf,
+        /// What the file looked like when it was last loaded, for `probe`.
+        stat: Option<FileStat>,
     },
     Stdin,
     Command {
@@ -29,6 +40,7 @@ enum Kind {
         /// Length and hash of the previous stdout, so the same output
         /// again is `Unchanged` without keeping a copy of it.
         last: Option<(usize, u64)>,
+        run: Option<exec::Run>,
     },
     Dir {
         path: PathBuf,
@@ -51,7 +63,11 @@ pub(crate) struct Snapshot {
 }
 
 pub(crate) enum Content {
-    Reader(Box<dyn Read>),
+    /// Streamed; `size_hint` is the total length when it is known.
+    Reader {
+        reader: Box<dyn Read>,
+        size_hint: Option<usize>,
+    },
     Bytes(Vec<u8>),
     /// A directory listing, one row per entry.
     Rows(Vec<Row>),
@@ -67,6 +83,20 @@ impl Failure {
     fn of(out: &exec::Output) -> Option<Failure> {
         (!out.status.success()).then(|| Failure { status: out.status, stderr: out.stderr.clone() })
     }
+
+    /// One line for a header: the exit code and the last stderr line.
+    pub(crate) fn note(&self) -> String {
+        exec::failure_note_of(self.status, &self.stderr)
+    }
+}
+
+/// What a cheap look at the source says, between loads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Probe {
+    Changed,
+    Unchanged,
+    /// The source has no cheap probe; the only way to know is a load.
+    Unknown,
 }
 
 impl Content {
@@ -74,7 +104,7 @@ impl Content {
     /// them: invalid utf-8 is an error, not a replacement character.
     pub(crate) fn lines(self) -> io::Result<Vec<String>> {
         match self {
-            Content::Reader(reader) => {
+            Content::Reader { reader, .. } => {
                 BufReader::with_capacity(128 * 1024, reader).lines().collect()
             }
             Content::Bytes(bytes) => bytes.lines().collect(),
@@ -87,12 +117,12 @@ impl Source {
     /// `plain` is the listing's names-only form; nothing else reads it.
     pub(crate) fn new(spec: SourceSpec, plain: bool) -> Source {
         let kind = match spec {
-            SourceSpec::File(path) => Kind::File { path },
+            SourceSpec::File(path) => Kind::File { path, stat: None },
             SourceSpec::Stdin => Kind::Stdin,
-            SourceSpec::Command(argv) => Kind::Command { argv, last: None },
+            SourceSpec::Command(argv) => Kind::Command { argv, last: None, run: None },
             SourceSpec::Dir(path) => Kind::Dir { path, plain },
         };
-        Source { kind }
+        Source { kind, ready: None }
     }
 
     /// The source as a header or an error message names it.
@@ -112,22 +142,107 @@ impl Source {
         }
     }
 
+    /// Whether a load is in flight.
+    pub(crate) fn is_running(&self) -> bool {
+        matches!(&self.kind, Kind::Command { run: Some(_), .. })
+    }
+
+    /// Has the source changed since it was last loaded? A file compares
+    /// its stat; a vanished file, or one that has appeared, counts as a
+    /// change. Everything else has to be loaded to find out.
+    pub(crate) fn probe(&self) -> Probe {
+        match &self.kind {
+            Kind::File { path, stat } => match (stat, FileStat::from_path(path).ok()) {
+                (Some(a), Some(b)) if *a == b => Probe::Unchanged,
+                (None, None) => Probe::Unchanged,
+                _ => Probe::Changed,
+            },
+            Kind::Stdin | Kind::Command { .. } | Kind::Dir { .. } => Probe::Unknown,
+        }
+    }
+
     /// Read everything, now. `Err` is why nothing could be read: a file
     /// that would not open, a command that would not spawn.
     pub(crate) fn load(&mut self) -> Result<Load, String> {
-        let content = match &mut self.kind {
-            Kind::File { path } => {
-                let file = std::fs::File::open(&*path).map_err(|e| e.to_string())?;
-                Content::Reader(Box::new(file))
-            }
-            Kind::Stdin => Content::Reader(Box::new(io::stdin().lock())),
-            Kind::Command { argv, last } => {
+        match &mut self.kind {
+            Kind::Command { argv, last, .. } => {
                 let out = exec::run(argv).map_err(|e| e.to_string())?;
-                return Ok(finish_command(out, last));
+                Ok(finish_command(out, last))
+            }
+            _ => self.load_now(),
+        }
+    }
+
+    /// Begin a load. A command is spawned and lands through [`poll`]; every
+    /// other kind is read here and handed back by the next `poll`. `Err` is
+    /// a spawn failure. A command already running is left to finish.
+    ///
+    /// [`poll`]: Source::poll
+    pub(crate) fn start(&mut self) -> Result<(), String> {
+        match &mut self.kind {
+            Kind::Command { argv, run, .. } => {
+                if run.is_none() {
+                    *run = Some(exec::start(argv).map_err(|e| e.to_string())?);
+                }
+                Ok(())
+            }
+            _ => {
+                self.ready = Some(self.load_now());
+                Ok(())
+            }
+        }
+    }
+
+    /// `Some` once a started load has landed.
+    pub(crate) fn poll(&mut self) -> Option<Result<Load, String>> {
+        match &mut self.kind {
+            Kind::Command { run, last, .. } => {
+                let out = match run.as_mut()?.poll() {
+                    Ok(None) => return None,
+                    Ok(Some(out)) => Ok(out),
+                    Err(e) => Err(e.to_string()),
+                };
+                *run = None;
+                Some(out.map(|out| finish_command(out, last)))
+            }
+            _ => self.ready.take(),
+        }
+    }
+
+    /// [`poll`], giving a command up to `grace` to return first, so a quick
+    /// one lands before the next paint. A synchronous kind lands at once.
+    ///
+    /// [`poll`]: Source::poll
+    pub(crate) fn wait_up_to(&mut self, grace: Duration) -> Option<Result<Load, String>> {
+        let until = std::time::Instant::now() + grace;
+        loop {
+            if let Some(load) = self.poll() {
+                return Some(load);
+            }
+            if !self.is_running() || std::time::Instant::now() >= until {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn load_now(&mut self) -> Result<Load, String> {
+        let content = match &mut self.kind {
+            Kind::File { path, stat } => {
+                // The stat is taken whatever the open says: a file that is
+                // gone is `None`, and stays `Unchanged` until it is back.
+                *stat = FileStat::from_path(path).ok();
+                let file = std::fs::File::open(&*path).map_err(|e| e.to_string())?;
+                let size_hint = file.metadata().ok().map(|m| m.len() as usize);
+                Content::Reader { reader: Box::new(file), size_hint }
+            }
+            Kind::Stdin => {
+                Content::Reader { reader: Box::new(io::stdin().lock()), size_hint: None }
             }
             Kind::Dir { path, plain } => {
                 Content::Rows(listing::render(path, *plain).map_err(|e| e.to_string())?)
             }
+            Kind::Command { .. } => unreachable!("a command is loaded through its run"),
         };
         Ok(Load::New(Snapshot { content, failure: None }))
     }
@@ -171,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    fn a_file_is_a_reader_and_a_missing_one_is_an_error() {
+    fn a_file_is_a_reader_with_a_stat_to_probe_against() {
         let dir = std::env::temp_dir().join(format!("eat-source-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -180,12 +295,59 @@ mod tests {
         let mut source = Source::new(SourceSpec::File(path.clone()), false);
         assert_eq!(source.path(), Some(path.as_path()));
         assert_eq!(source.label(), path.display().to_string());
+        assert_eq!(source.probe(), Probe::Changed, "never loaded, so anything is news");
         let Ok(Load::New(snap)) = source.load() else { panic!("a readable file loads") };
         assert!(snap.failure.is_none());
-        assert_eq!(snap.content.lines().unwrap(), ["one", "two"]);
+        let Content::Reader { size_hint, reader } = snap.content else { panic!("a file streams") };
+        assert_eq!(size_hint, Some(8));
+        assert_eq!(Content::Reader { reader, size_hint }.lines().unwrap(), ["one", "two"]);
+        assert_eq!(source.probe(), Probe::Unchanged);
+        std::fs::write(&path, "one\ntwo\nthree\n").unwrap();
+        assert_eq!(source.probe(), Probe::Changed);
         std::fs::remove_file(&path).unwrap();
+        assert_eq!(source.probe(), Probe::Changed, "a vanished file is a change");
         assert!(source.load().is_err());
+        assert_eq!(source.probe(), Probe::Unchanged, "and stays gone until it is back");
+        std::fs::write(&path, "back\n").unwrap();
+        assert_eq!(source.probe(), Probe::Changed);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_synchronous_source_lands_on_the_poll_after_start() {
+        let mut source = Source::new(SourceSpec::File(PathBuf::from("/nonexistent/x")), false);
+        assert!(source.poll().is_none(), "nothing started yet");
+        source.start().unwrap();
+        assert!(!source.is_running());
+        assert!(matches!(source.poll(), Some(Err(_))));
+        assert!(source.poll().is_none(), "taken once");
+    }
+
+    #[test]
+    fn a_command_is_polled_until_it_lands() {
+        let mut source = command(&["sh", "-c", "sleep 0.2; echo late; exit 2"]);
+        assert_eq!(source.probe(), Probe::Unknown);
+        source.start().unwrap();
+        assert!(source.is_running());
+        assert!(source.poll().is_none(), "polled as finished before it could be");
+        source.start().unwrap();
+        assert!(source.is_running(), "a second start leaves the run alone");
+        let out = loop {
+            if let Some(out) = source.poll() {
+                break out;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(!source.is_running());
+        let Ok(Load::New(snap)) = out else { panic!("output with a failure loads") };
+        assert_eq!(snap.failure.unwrap().note(), "exit 2");
+        assert!(matches!(snap.content, Content::Bytes(ref b) if b == b"late\n"));
+        // a quick command lands inside the grace.
+        let mut quick = command(&["echo", "now"]);
+        quick.start().unwrap();
+        let out = quick.wait_up_to(Duration::from_secs(2)).expect("echo returns within 2s");
+        assert_eq!(bytes(out), b"now\n");
+        assert!(!quick.is_running());
     }
 
     #[test]
@@ -225,6 +387,7 @@ mod tests {
     #[test]
     fn a_missing_program_is_an_error() {
         assert!(command(&["/nonexistent/eat-test-program"]).load().is_err());
+        assert!(command(&["/nonexistent/eat-test-program"]).start().is_err());
         assert!(command(&[]).load().is_err());
     }
 
