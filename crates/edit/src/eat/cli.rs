@@ -1,8 +1,10 @@
 //! Argument parsing for the eat persona.
 //!
-//! argh does the work, with two hand-rolled adjustments in [`parse_cli`]:
-//! bare `-L` and bare `-f` are rewritten to carry their default values,
-//! since argh has no notion of an option whose value is optional.
+//! argh does the work, with hand-rolled adjustments in [`rewrite_argv`]:
+//! bare `-L` and bare `-w` are rewritten to carry their default values,
+//! since argh has no notion of an option whose value is optional, and
+//! `-w3s` / `-w=3s` / `--watch=3s` are split into two tokens, the only
+//! form argh takes.
 
 use std::process::ExitCode;
 
@@ -396,8 +398,9 @@ fn parse_argv(
 }
 
 /// The argv as argh will see it: `--eat` stripped, a bare `-` stood in
-/// for, and the two options with an optional value (`-L`, `-w`) given
-/// their default when the next token is not one. Everything after `--`
+/// for, an attached option value split off, and the two options with an
+/// optional value (`-L`, `-w`) given their default when the next token is
+/// not one. Everything after `--`
 /// passes through untouched, since from there on the tokens are paths or,
 /// with `-x`, a command.
 fn rewrite_argv(argv: &[String], via_eat_flag: bool, watch_default: &str) -> Vec<String> {
@@ -433,12 +436,45 @@ fn rewrite_argv(argv: &[String], via_eat_flag: bool, watch_default: &str) -> Vec
                 rewritten.push(watch_default.to_string());
                 i += 1;
             }
+        } else if let Some((flag, value)) = split_attached_value(a) {
+            rewritten.push(flag);
+            rewritten.push(value.to_string());
+            i += 1;
         } else {
             rewritten.push(a.clone());
             i += 1;
         }
     }
     rewritten
+}
+
+/// Every option of [`Cli`] that takes a value, as (short, long).
+const VALUE_OPTIONS: [(Option<char>, &str); 7] = [
+    (Some('l'), "language"),
+    (None, "line-range"),
+    (None, "color"),
+    (None, "paging"),
+    (None, "wrap"),
+    (Some('w'), "watch"),
+    (Some('L'), "list-languages"),
+];
+
+/// `-w3s`, `-w=3s` and `--watch=3s` as the flag and its value, which argh
+/// only takes as two tokens. The value is not checked here, so a bad or
+/// empty one still reaches argh and gets its error.
+fn split_attached_value(arg: &str) -> Option<(String, &str)> {
+    if let Some(rest) = arg.strip_prefix("--") {
+        let (name, value) = rest.split_once('=')?;
+        VALUE_OPTIONS.iter().any(|&(_, long)| long == name).then(|| (format!("--{name}"), value))
+    } else {
+        let mut chars = arg.strip_prefix('-')?.chars();
+        let short = chars.next()?;
+        let value = chars.as_str();
+        if value.is_empty() || !VALUE_OPTIONS.iter().any(|&(s, _)| s == Some(short)) {
+            return None;
+        }
+        Some((format!("-{short}"), value.strip_prefix('=').unwrap_or(value)))
+    }
 }
 
 // pre-existing layout: `mod tests` sits in the middle of the file, with
@@ -477,6 +513,59 @@ mod tests {
         assert_eq!(rewrite(&["eat", "-w", "2s", "x.log"]), argv(&["eat", "-w", "2s", "x.log"]));
         assert_eq!(rewrite(&["eat", "-w"]), argv(&["eat", "-w", "1000ms"]));
         assert_eq!(rewrite(&["eat", "-w", "--", "x"]), argv(&["eat", "-w", "1000ms", "--", "x"]));
+    }
+
+    #[test]
+    fn options_take_an_attached_value() {
+        for form in ["-w3s", "-w=3s", "--watch=3s"] {
+            let cli = parse_argv(&argv(&["eat", form, "-x", "git", "diff"]), false, "1000ms")
+                .unwrap_or_else(|e| panic!("{form}: {}", e.output));
+            assert_eq!(cli.watch, Some(PollInterval(std::time::Duration::from_secs(3))), "{form}");
+            assert_eq!(cli.files, argv(&["git", "diff"]), "{form}");
+        }
+        for form in ["-lrust", "-l=rust", "--language=rust"] {
+            let cli = parse_argv(&argv(&["eat", form, "a.txt"]), false, "1000ms").unwrap();
+            assert_eq!(cli.language.as_deref(), Some("rust"), "{form}");
+        }
+        for form in ["-Ljson", "-L=json", "--list-languages=json"] {
+            let cli = parse_argv(&argv(&["eat", form]), false, "1000ms").unwrap();
+            assert_eq!(cli.list_languages, Some(ListFormatArg(ListFormat::Json)), "{form}");
+        }
+        let cli = parse_argv(
+            &argv(&["eat", "--color=never", "--paging=never", "--wrap=never", "--line-range=2:"]),
+            false,
+            "1000ms",
+        )
+        .unwrap();
+        assert_eq!(
+            (cli.color, cli.paging, cli.wrap, cli.line_range.as_deref()),
+            (ColorMode::Never, PagingMode::Never, WrapMode::Never, Some("2:"))
+        );
+        // the value is the option's to reject, never a fallback to the default.
+        for form in ["-w=", "-wjunk", "--watch=junk", "-L=junk", "--color=", "-n=1", "--plain=1"] {
+            assert!(parse_argv(&argv(&["eat", form, "a.txt"]), false, "1000ms").is_err(), "{form}");
+        }
+        assert_eq!(rewrite(&["eat", "--", "-w3s"]), argv(&["eat", "--", "-w3s"]));
+    }
+
+    /// argh's usage line is the source of truth for which options take a
+    /// value; the table the attached-value split reads must agree with it.
+    #[test]
+    fn value_options_match_the_cli() {
+        let help = Cli::from_args(&["eat"], &["--help"]).unwrap_err().output;
+        let usage = help.lines().next().unwrap();
+        let mut from_usage: Vec<&str> = usage
+            .split('[')
+            .filter(|group| group.starts_with('-') && group.contains('<'))
+            .filter_map(|group| group.split_whitespace().next())
+            .collect();
+        from_usage.sort();
+        let mut from_table: Vec<String> = VALUE_OPTIONS
+            .iter()
+            .map(|&(short, long)| short.map_or(format!("--{long}"), |c| format!("-{c}")))
+            .collect();
+        from_table.sort();
+        assert_eq!(from_usage, from_table, "{usage}");
     }
 
     #[test]
