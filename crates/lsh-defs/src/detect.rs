@@ -264,7 +264,7 @@ fn is_padded_kv(line: &[u8]) -> bool {
 
 fn looks_like_diff(head: &[u8]) -> bool {
     let mut prev_minus = false;
-    for raw in head.split(|&b| b == b'\n').take(16) {
+    for raw in head.split(|&b| b == b'\n').take(64) {
         let line = raw.strip_suffix(b"\r").unwrap_or(raw);
         if line.starts_with(b"diff --git ") || line.starts_with(b"Index: ") {
             return true;
@@ -503,6 +503,20 @@ mod tests {
     fn content_diff_hunk_first() {
         let s = b"@@ -1,2 +1,2 @@\n-old\n+new\n";
         assert_eq!(content_id(s), Some("diff"));
+    }
+
+    #[test]
+    fn content_diff_after_long_commit_message() {
+        // `git show` puts the commit header and message ahead of the first
+        // `diff --git`; a wordy message pushes it well past line 16.
+        let mut s = b"commit 0123456789abcdef0123456789abcdef01234567\n\
+            Author: a <a@b>\nDate:   Mon Jan 1 00:00:00 2024 +0000\n\n"
+            .to_vec();
+        for i in 0..30 {
+            s.extend_from_slice(format!("    message line {i}\n").as_bytes());
+        }
+        s.extend_from_slice(b"\ndiff --git a/foo b/foo\n--- a/foo\n+++ b/foo\n");
+        assert_eq!(content_id(&s), Some("diff"));
     }
 
     #[test]
