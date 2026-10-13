@@ -56,8 +56,8 @@ fn main() -> process::ExitCode {
         return edit::eat::main(true);
     }
 
-    // --help/-h anywhere in remaining args prints edit's help.
-    if env::args_os().any(|a| a == "-h" || a == "--help") {
+    // --help/-h anywhere before `--` prints edit's help.
+    if env::args_os().skip(1).take_while(|a| a != "--").any(|a| a == "-h" || a == "--help") {
         cli::print_help();
         return process::ExitCode::SUCCESS;
     }

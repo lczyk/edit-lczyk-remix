@@ -281,7 +281,7 @@ pub(crate) fn print_short_help(via_eat_flag: bool) -> ExitCode {
     let name = prog_name();
     let eat_flag = if via_eat_flag { " --eat" } else { "" };
     eprintln!(
-        "usage: {name}{eat_flag} [-l <lang>] [-p] [-n] [-L] [--line-range <RANGE>] [--color <WHEN>] [--paging <WHEN>] [--wrap <WHEN>] [-f [<DUR>]] [--version] [FILES...]"
+        "usage: {name}{eat_flag} [-l <lang>] [-p] [-n] [-L] [--line-range <RANGE>] [--color <WHEN>] [--paging <WHEN>] [--wrap <WHEN>] [-w [<DUR>]] [-x] [--version] [FILES...]"
     );
     eprintln!("try `{name}{eat_flag} --help` for more details.");
     ExitCode::from(0)
@@ -329,8 +329,7 @@ pub(crate) fn parse_cli(via_eat_flag: bool) -> Cli {
         std::process::exit(1);
     }
 
-    // --help/-h anywhere in args prints help and exits, position-independent.
-    if argv.iter().skip(1).any(|a| a == "-h" || a == "--help") {
+    if asks_for_help(&argv) {
         let help_argv: [&str; 2] = [argv[0].as_str(), "--help"];
         match Cli::from_args(&[help_argv[0]], &help_argv[1..]) {
             Ok(_) => unreachable!(),
@@ -370,6 +369,12 @@ pub(crate) fn parse_cli(via_eat_flag: bool) -> Cli {
             }
         },
     }
+}
+
+/// `-h` / `--help` anywhere before `--`. Past it they belong to the paths
+/// or, with `-x`, the command.
+fn asks_for_help(argv: &[String]) -> bool {
+    argv.iter().skip(1).take_while(|a| *a != "--").any(|a| a == "-h" || a == "--help")
 }
 
 /// Stands in for a bare `-` on its way through argh, which reads anything
@@ -564,6 +569,16 @@ mod tests {
             .collect();
         from_table.sort();
         assert_eq!(from_usage, from_table, "{usage}");
+    }
+
+    #[test]
+    fn help_only_before_the_separator() {
+        assert!(asks_for_help(&argv(&["eat", "a.txt", "--help"])));
+        assert!(asks_for_help(&argv(&["eat", "-x", "-h", "--", "ls"])));
+        assert!(!asks_for_help(&argv(&["eat", "-x", "--", "ls", "--help"])));
+        assert!(!asks_for_help(&argv(&["eat", "--", "-h"])));
+        let cli = parse_argv(&argv(&["eat", "-x", "--", "ls", "--help"]), false, "1000ms").unwrap();
+        assert_eq!(cli.files, argv(&["ls", "--help"]));
     }
 
     #[test]
