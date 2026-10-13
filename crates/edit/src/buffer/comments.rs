@@ -198,9 +198,7 @@ impl TextBuffer {
                 continue;
             };
 
-            let beg_delta;
-            let end_delta;
-            if all_wrapped {
+            let (beg_delta, end_delta) = if all_wrapped {
                 // Strip trailing close (+ optional preceding space).
                 self.cursor_move_to_logical(Point { x: info.content_end_chars, y });
                 self.delete(CursorMovement::Grapheme, -close_chars);
@@ -217,8 +215,7 @@ impl TextBuffer {
                     self.delete(CursorMovement::Grapheme, 1);
                     open_strip += 1;
                 }
-                beg_delta = -open_strip;
-                end_delta = -(open_strip + close_strip);
+                (-open_strip, -(open_strip + close_strip))
             } else {
                 // Skip tokens this line already has (e.g. a line straddling
                 // a pre-existing multi-line comment) so toggling never
@@ -248,9 +245,8 @@ impl TextBuffer {
                     self.write_canon(&head);
                     beg_delta_local = open_chars + 1;
                 }
-                beg_delta = beg_delta_local;
-                end_delta = beg_delta_local + end_delta_local;
-            }
+                (beg_delta_local, beg_delta_local + end_delta_local)
+            };
 
             if y == sel_beg.y {
                 sel_beg.x = (sel_beg.x + beg_delta).max(0);
