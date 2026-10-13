@@ -50,12 +50,10 @@ fn main() -> process::ExitCode {
     // --eat wins over --help so `edit --eat --help` prints eat's help.
     // Symlink (name == "eat") also takes priority.
     if name == "eat" {
-        return edit::eat::main();
+        return edit::eat::main(false);
     }
     if env::args_os().skip(1).take_while(|a| a != "--").any(|a| a == "--eat") {
-        // SAFETY: single-threaded at this point in main.
-        unsafe { std::env::set_var("EDIT_EAT_VIA_FLAG", "1") };
-        return edit::eat::main();
+        return edit::eat::main(true);
     }
 
     // --help/-h anywhere in remaining args prints edit's help.

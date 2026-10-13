@@ -78,11 +78,12 @@ fn unknown_language(name: &str) -> ExitCode {
 }
 
 /// main entry point for eat. called from edit's argv0 dispatch -- either via a
-/// symlink named `eat` or via `edit --eat`. there is no separate cargo target.
-pub fn main() -> ExitCode {
+/// symlink named `eat` or via `edit --eat`, which `via_eat_flag` tells apart
+/// for the help text alone. there is no separate cargo target.
+pub fn main(via_eat_flag: bool) -> ExitCode {
     stdext::arena::init(128 * 1024 * 1024).unwrap();
 
-    let cli: Cli = parse_cli();
+    let cli: Cli = parse_cli(via_eat_flag);
 
     if let Some(fmt) = cli.list_languages {
         return crate::langlist::list_languages(fmt.0);
@@ -120,7 +121,7 @@ pub fn main() -> ExitCode {
     }
 
     match plan {
-        Plan::Help => cli::print_short_help(),
+        Plan::Help => cli::print_short_help(via_eat_flag),
         Plan::Viewer { source, watch } => run_viewer(source, watch, &cli),
         Plan::Stream { sources } => stream::run(&sources, &cli, line_range),
     }

@@ -277,9 +277,9 @@ pub(crate) fn parse_line_range(s: &str) -> Result<LineRange, String> {
 }
 
 /// print short help and exit.
-pub(crate) fn print_short_help() -> ExitCode {
+pub(crate) fn print_short_help(via_eat_flag: bool) -> ExitCode {
     let name = prog_name();
-    let eat_flag = if std::env::var("EDIT_EAT_VIA_FLAG").is_ok() { " --eat" } else { "" };
+    let eat_flag = if via_eat_flag { " --eat" } else { "" };
     eprintln!(
         "usage: {name}{eat_flag} [-l <lang>] [-p] [-n] [-L] [--line-range <RANGE>] [--color <WHEN>] [--paging <WHEN>] [--wrap <WHEN>] [-f [<DUR>]] [--version] [FILES...]"
     );
@@ -321,15 +321,13 @@ pub(crate) fn prog_name() -> String {
         .unwrap_or_else(|| "eat".to_string())
 }
 
-pub(crate) fn parse_cli() -> Cli {
+pub(crate) fn parse_cli(via_eat_flag: bool) -> Cli {
     use argh::FromArgs;
     let argv: Vec<String> = std::env::args().collect();
     if argv.is_empty() {
         eprintln!("{}: empty argv", prog_name());
         std::process::exit(1);
     }
-
-    let via_eat_flag = std::env::var("EDIT_EAT_VIA_FLAG").is_ok();
 
     // --help/-h anywhere in args prints help and exits, position-independent.
     if argv.iter().skip(1).any(|a| a == "-h" || a == "--help") {
