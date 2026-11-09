@@ -109,7 +109,8 @@ services:
     assert!(!runtime.detect(compose, detect_addr), "docker-compose is not a slice");
 
     // Looks-like-package value but missing top-level `slices:` block (e.g.
-    // an ansible variables file, or chisel-adjacent yaml that isn't an sdf).
+    // an ansible variables file, or chisel-adjacent yaml that isn't a
+    // package slices file).
     let no_slices = b"\
 package: hello
 description: a greeting

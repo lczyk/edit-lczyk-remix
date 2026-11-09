@@ -1,4 +1,4 @@
-// Chisel slice definition files (sdfs) -- canonical/chisel-releases dialect of
+// Chisel package slices files -- canonical/chisel-releases dialect of
 // YAML. Adds dialect highlighting for the structural top-level keys
 // (package/essential/slices/contents/mutate) and for slice names (the keys
 // nested directly under `slices:`), which get the same highlight as function
